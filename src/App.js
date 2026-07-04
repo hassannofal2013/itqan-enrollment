@@ -2,9 +2,10 @@ import { useState } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMAILJS_PUBLIC_KEY = "4mH8vLefPnezHWPnx";
-const EMAILJS_SERVICE_ID = "service_w2djxq3";
+const EMAILJS_SERVICE_ID = "service_itqan";
 const SCHOOL_EMAIL       = "itqanschule@gmail.com";
 const ADMIN_EMAIL        = "hassan.nofal@student.medicalschool-berlin.de";
+const SHEETS_URL         = "https://script.google.com/macros/s/AKfycbwcnTVWK1tFFgb8XCp3veZCCPPBy6NFsTsPYvhlcs28nsb_1dkvWksQnD0GuPcsEcQrzA/exec";
 const YEAR_SHORT         = "26";
 const YEAR_FULL          = "2026/2027";
 
@@ -17,7 +18,7 @@ const GRADES = [
   { ar:"الصف الثالث",  de:"Klasse 3", code:"3" },
   { ar:"الصف الرابع",  de:"Klasse 4", code:"4" },
   { ar:"الصف الخامس",  de:"Klasse 5", code:"5" },
-   { ar:"مطلوب إختبار تحديد مستوى",  de:"Einstufungstest erforderlich", code:"5" },
+  { ar:"مطلوب إختبار تحديد مستوى",  de:"Einstufungstest erforderlich", code:"5" },
 ];
 
 const SCHOOLS = [
@@ -374,12 +375,33 @@ ${summaryLines}`;
         cards_html: cardsHTML.join("\n\n"), submitted_at: fd.submittedAt,
       });
 
-      // 3. CC to admin
-      setStatusMsg("إرسال نسخة للمسؤول...");
-      await ejs.send(EMAILJS_SERVICE_ID, "template_admin_cc", {
-        to_email: ADMIN_EMAIL, parent_name: parent.name,
-        summary, submitted_at: fd.submittedAt,
-      });
+      // Admin CC removed (requires paid plan)
+
+      // 3. Save to Google Sheets
+      setStatusMsg("حفظ البيانات في السجل... / Daten werden gespeichert...");
+      try {
+        await fetch(SHEETS_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parent,
+            children: childrenWithIds.map(ch => ({
+              name:        ch.name,
+              dob:         ch.dob,
+              grade:       ch.grade,
+              gradeAr:     ch.gradeAr,
+              school:      ch.school,
+              ids:         ch.ids,
+              photoBase64: ch.photoBase64 || null,
+            })),
+            photoConsent,
+            submittedAt: fd.submittedAt,
+          })
+        });
+      } catch(sheetErr) {
+        console.warn("Sheets save failed:", sheetErr);
+      }
 
       setStatus("success"); setStatusMsg("");
     } catch(err) {
@@ -412,11 +434,7 @@ ${summaryLines}`;
               <div style={{ fontSize:11,color:"#5a7a6a",direction:"rtl" }}>العقد + بطاقات التعريف لجميع الطلاب</div>
               <div style={{ fontSize:10,color:"#8a9aaa",direction:"ltr" }}>Contract + ID cards for all children</div>
             </div>
-            <div style={{ borderRadius:8,background:"#fff",padding:"8px 12px",border:"1px solid #d0d8f0" }}>
-              <div style={{ fontSize:13,direction:"rtl",marginBottom:2 }}>• <strong>{ADMIN_EMAIL}</strong></div>
-              <div style={{ fontSize:11,color:"#5a7a6a",direction:"rtl" }}>نسخة للأرشيف</div>
-              <div style={{ fontSize:10,color:"#8a9aaa",direction:"ltr" }}>Archive copy</div>
-            </div>
+
           </div>
 
           {/* Student IDs */}
