@@ -18,7 +18,7 @@ const GRADES = [
   { ar:"الصف الثالث",  de:"Klasse 3", code:"3" },
   { ar:"الصف الرابع",  de:"Klasse 4", code:"4" },
   { ar:"الصف الخامس",  de:"Klasse 5", code:"5" },
-  { ar:"مطلوب إختبار تحديد مستوى",  de:"Einstufungstest erforderlich", code:"5" },
+  { ar:"مطلوب اختبار تحديد مستوى", de:"Einstufungstest erforderlich", code:"TEST" },
 ];
 
 const SCHOOLS = [
@@ -297,8 +297,9 @@ export default function App() {
     if (step===1) children.forEach((ch,i)=>{
       if (!ch.name.trim() || !isLatinOnly(ch.name)) e[`cn${i}`]=1;
       if (!ch.dob) e[`cd${i}`]=1;
-      if (!ch.grade) e[`cg${i}`]=1;
       if (!ch.school) e[`cs${i}`]=1;
+      // Grade required only for Arabic or Beide
+      if ((ch.school?.key==="Arabisch" || ch.school?.key==="Beide") && !ch.grade) e[`cg${i}`]=1;
     });
     setErrors(e);
     return !Object.keys(e).length;
@@ -553,15 +554,24 @@ ${summaryLines}`;
                 <input style={inp(errors[`cd${i}`])} type="date" value={ch.dob} onChange={e=>uc(i,"dob",e.target.value)}/>
               </Fld>
 
-              <Fld ar="الصف الدراسي" de="Schulklasse" err={errors[`cg${i}`]}>
-                <select style={inp(errors[`cg${i}`])} value={ch.grade} onChange={e=>{
-                  const g=GRADES.find(g=>g.de===e.target.value);
-                  uc(i,"grade",e.target.value); uc(i,"gradeCode",g?.code||""); uc(i,"gradeAr",g?.ar||"");
-                }}>
-                  <option value="">-- Klasse wählen / اختر الصف --</option>
-                  {GRADES.map(g=><option key={g.code} value={g.de}>{g.de} / {g.ar}</option>)}
-                </select>
-              </Fld>
+              {/* Grade — only for Arabic school */}
+              {(ch.school?.key === "Arabisch" || ch.school?.key === "Beide") ? (
+                <Fld ar="الصف الدراسي (مدرسة اللغة العربية)" de="Schulklasse (Arabisch-Schule)" err={errors[`cg${i}`]}>
+                  <select style={inp(errors[`cg${i}`])} value={ch.grade} onChange={e=>{
+                    const g=GRADES.find(g=>g.de===e.target.value);
+                    uc(i,"grade",e.target.value); uc(i,"gradeCode",g?.code||""); uc(i,"gradeAr",g?.ar||"");
+                  }}>
+                    <option value="">-- Klasse wählen / اختر الصف --</option>
+                    {GRADES.map(g=><option key={g.code} value={g.de}>{g.de} / {g.ar}</option>)}
+                  </select>
+                </Fld>
+              ) : ch.school?.key === "Koran" ? (
+                <div style={{ marginBottom:14, background:"#eaffea", border:"1px solid #3A7D3A", borderRadius:10, padding:"10px 14px" }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#3A7D3A", direction:"rtl" }}>🕌 مدرسة القرآن الكريم</div>
+                  <div style={{ fontSize:11, color:"#5a9a5a", direction:"ltr", marginTop:3 }}>Koran-Schule — kein Klassenauswahl erforderlich</div>
+                  <div style={{ fontSize:11, color:"#5a9a5a", direction:"rtl", marginTop:2 }}>لا يُشترط اختيار صف لمدرسة القرآن</div>
+                </div>
+              ) : null}
 
               {/* School per child */}
               <div style={{ marginBottom:14 }}>
@@ -571,7 +581,7 @@ ${summaryLines}`;
                 </label>
                 <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
                   {SCHOOLS.map(sc=>(
-                    <div key={sc.key} onClick={()=>uc(i,"school",sc)} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",border:`2px solid ${ch.school?.key===sc.key?sc.color:"#d0e8d8"}`,borderRadius:10,cursor:"pointer",background:ch.school?.key===sc.key?"#f0f4ff":"#f8fdf9",transition:"all 0.15s" }}>
+                    <div key={sc.key} onClick={()=>{ uc(i,"school",sc); if(sc.key==="Koran"){ uc(i,"grade",""); uc(i,"gradeCode",""); uc(i,"gradeAr",""); } }} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",border:`2px solid ${ch.school?.key===sc.key?sc.color:"#d0e8d8"}`,borderRadius:10,cursor:"pointer",background:ch.school?.key===sc.key?"#f0f4ff":"#f8fdf9",transition:"all 0.15s" }}>
                       <span style={{ fontSize:20 }}>{sc.icon}</span>
                       <span style={{ flex:1 }}>
                         <span style={{ fontWeight:600,display:"block",direction:"rtl",color:"#1a3a1a",fontSize:13 }}>{sc.ar}</span>
