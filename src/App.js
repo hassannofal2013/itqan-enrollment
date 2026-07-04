@@ -2,11 +2,11 @@ import { useState } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMAILJS_PUBLIC_KEY = "4mH8vLefPnezHWPnx";
-const EMAILJS_SERVICE_ID = "service_itqan";
+const EMAILJS_SERVICE_ID = "service_w2djxq3";
 const SCHOOL_EMAIL       = "itqanschule@gmail.com";
 const ADMIN_EMAIL        = "hassan.nofal@student.medicalschool-berlin.de";
 const YEAR_SHORT         = "26";
-const YEAR_FULL          = "2025/2026";
+const YEAR_FULL          = "2026/2027";
 
 const GRADES = [
   { ar:"تحضيري 1", de:"Vorschule 1", code:"PRE1" },
