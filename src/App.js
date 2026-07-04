@@ -17,6 +17,7 @@ const GRADES = [
   { ar:"الصف الثالث",  de:"Klasse 3", code:"3" },
   { ar:"الصف الرابع",  de:"Klasse 4", code:"4" },
   { ar:"الصف الخامس",  de:"Klasse 5", code:"5" },
+   { ar:"مطلوب إختبار تحديد مستوى",  de:"Einstufungstest erforderlich", code:"5" },
 ];
 
 const SCHOOLS = [
