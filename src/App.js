@@ -2,7 +2,7 @@ import { useState } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMAILJS_PUBLIC_KEY = "4mH8vLefPnezHWPnx";
-const EMAILJS_SERVICE_ID = "service_itqan";
+const EMAILJS_SERVICE_ID = "service_w2djxq3";
 const SCHOOL_EMAIL       = "itqanschule@gmail.com";
 const ADMIN_EMAIL        = "hassan.nofal@student.medicalschool-berlin.de";
 const SHEETS_URL         = "https://script.google.com/macros/s/AKfycbwcnTVWK1tFFgb8XCp3veZCCPPBy6NFsTsPYvhlcs28nsb_1dkvWksQnD0GuPcsEcQrzA/exec";
@@ -329,80 +329,27 @@ export default function App() {
     setFinalData(fd);
 
     try {
-      const ejs = await loadEmailJS();
-      const contractHTML = buildContractHTML(parent, childrenWithIds, photoConsent);
+      setStatusMsg("جاري الإرسال... / Wird gesendet...");
 
-      // Cards HTML for all children
-      const cardsHTML = childrenWithIds.flatMap((ch,i) => {
-        if (!ch.school) return [];
-        if (ch.school.key==="Beide") {
-          const ar = SCHOOLS.find(s=>s.key==="Arabisch");
-          const kr = SCHOOLS.find(s=>s.key==="Koran");
-          return [
-            buildCardHTML({...ch}, ch.ids[0], ar),
-            buildCardHTML({...ch}, ch.ids[1], kr),
-          ];
-        }
-        return [buildCardHTML({...ch}, ch.ids[0], ch.school)];
+      await fetch(SHEETS_URL, {
+        method: "POST",
+        mode:   "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parent,
+          children: childrenWithIds.map(ch => ({
+            name:        ch.name,
+            dob:         ch.dob,
+            grade:       ch.grade,
+            gradeAr:     ch.gradeAr,
+            school:      ch.school,
+            ids:         ch.ids,
+            photoBase64: ch.photoBase64 || null,
+          })),
+          photoConsent: true,
+          submittedAt:  fd.submittedAt,
+        })
       });
-
-      const summaryLines = childrenWithIds.map((ch,i)=>
-        `  ${i+1}. ${ch.name} | ${ch.dob} | ${ch.grade} | ${ch.school?.de||"—"} | IDs: ${ch.ids.join(", ")}`
-      ).join("\n");
-
-      const summary = `NEUE ANMELDUNG / تسجيل جديد — ${fd.submittedAt}
-ولي الأمر: ${parent.name} | ${parent.email} | ${parent.phone}
-Adresse: ${parent.address}
-Photo-Einwilligung: ${photoConsent?"Ja/نعم":"Nein/لا"}
-
-Kinder / الأبناء:
-${summaryLines}`;
-
-      // 1. Contract to parent
-      setStatusMsg("إرسال العقد لولي الأمر...");
-      await ejs.send(EMAILJS_SERVICE_ID, "template_contract_parent", {
-        to_email: parent.email, to_name: parent.name,
-        year: YEAR_FULL, school_email: SCHOOL_EMAIL,
-        contract_html: contractHTML, reply_to: SCHOOL_EMAIL,
-      });
-
-      // 2. Full package to school
-      setStatusMsg("إرسال الملفات للمدرسة...");
-      await ejs.send(EMAILJS_SERVICE_ID, "template_school_package", {
-        to_email: SCHOOL_EMAIL, parent_name: parent.name,
-        parent_email: parent.email, parent_phone: parent.phone,
-        year: YEAR_FULL, children_count: children.length,
-        summary, contract_html: contractHTML,
-        cards_html: cardsHTML.join("\n\n"), submitted_at: fd.submittedAt,
-      });
-
-      // Admin CC removed (requires paid plan)
-
-      // 3. Save to Google Sheets
-      setStatusMsg("حفظ البيانات في السجل... / Daten werden gespeichert...");
-      try {
-        await fetch(SHEETS_URL, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            parent,
-            children: childrenWithIds.map(ch => ({
-              name:        ch.name,
-              dob:         ch.dob,
-              grade:       ch.grade,
-              gradeAr:     ch.gradeAr,
-              school:      ch.school,
-              ids:         ch.ids,
-              photoBase64: ch.photoBase64 || null,
-            })),
-            photoConsent,
-            submittedAt: fd.submittedAt,
-          })
-        });
-      } catch(sheetErr) {
-        console.warn("Sheets save failed:", sheetErr);
-      }
 
       setStatus("success"); setStatusMsg("");
     } catch(err) {
