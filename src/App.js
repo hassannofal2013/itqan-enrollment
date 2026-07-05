@@ -7,14 +7,14 @@ const BLUE  = "#2E5DA8";
 const GOLD  = "#C8960A";
 const GREEN = "#3A7D3A";
 const CAPACITY = {
-  "Vorschule 1": { "Samstag":{"10:00–12:45":16,"13:00–15:45":16}, "Sonntag":{"10:00–12:45":20,"13:00–15:45":24} },
-  "Vorschule 2": { "Samstag":{"10:00–12:45":24,"13:00–15:45":24}, "Sonntag":{"10:00–12:45":16,"13:00–15:45":24} },
-  "Vorschule 3": { "Samstag":{"10:00–12:45":23,"13:00–15:45":32}, "Sonntag":{"10:00–12:45":16,"13:00–15:45":24} },
-  "Klasse 1":    { "Samstag":{"10:00–12:45":20,"13:00–15:45":20}, "Sonntag":{"10:00–12:45":23,"13:00–15:45":24} },
-  "Klasse 2":    { "Samstag":{"10:00–12:45":16,"13:00–15:45":12}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
-  "Klasse 3":    { "Samstag":{"10:00–12:45":null,"13:00–15:45":12},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
-  "Klasse 4":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":null},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
-  "Klasse 5":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":12}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
+  "Vorschule 1": { "Samstag":{"09:00–12:45":16,"13:00–16:45":16}, "Sonntag":{"09:00–12:45":20,"13:00–16:45":24} },
+  "Vorschule 2": { "Samstag":{"09:00–12:45":24,"13:00–16:45":24}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
+  "Vorschule 3": { "Samstag":{"09:00–12:45":23,"13:00–16:45":32}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
+  "Klasse 1":    { "Samstag":{"09:00–12:45":20,"13:00–16:45":20}, "Sonntag":{"09:00–12:45":23,"13:00–16:45":24} },
+  "Klasse 2":    { "Samstag":{"09:00–12:45":16,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 3":    { "Samstag":{"09:00–12:45":null,"13:00–16:45":12},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 4":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":null},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 5":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
 };
 const getCapacity = (grade,day,sess) => CAPACITY[grade]?.[day]?.[sess] ?? null;
 
@@ -37,8 +37,33 @@ const SCHOOLS = [
 ];
 
 const DAYS     = ["Samstag / السبت", "Sonntag / الأحد"];
-const SESSIONS = ["10:00–12:45", "13:00–15:45"];
+const SESSIONS = ["09:00–12:45", "13:00–16:45"];
 const DAYS_KEY     = ["Samstag", "Sonntag"];
+
+const KORAN_SESSIONS = [
+  { day:"Freitag",  dayAr:"الجمعة",  session:"17:30–19:30" },
+  { day:"Samstag",  dayAr:"السبت",   session:"16:30–18:30" },
+  { day:"Sonntag",  dayAr:"الأحد",   session:"13:00–15:00" },
+];
+
+// حساب العمر بالسنوات من تاريخ الميلاد
+function calcAge(dob) {
+  if (!dob) return null;
+  const today = new Date();
+  const b     = new Date(dob);
+  let age     = today.getFullYear() - b.getFullYear();
+  const m     = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age;
+}
+
+function getAgeGroup(dob) {
+  const age = calcAge(dob);
+  if (age === null) return "";
+  if (age <= 6)  return "4–6 Jahre / ٤-٦ سنوات";
+  if (age <= 10) return "7–10 Jahre / ٧-١٠ سنوات";
+  return "Über 10 Jahre / أكبر من ١٠ سنوات";
+}
 
 const STEPS = [
   ["بيانات ولي الأمر","Erziehungsberechtigte"],
@@ -50,7 +75,7 @@ const LATIN_ONLY = /^[a-zA-ZäöüÄÖÜß\s\-'.]*$/;
 const isLatin = v => LATIN_ONLY.test(v);
 const emptyChild = () => ({
   name:"", nameErr:false, dob:"", grade:"", gradeCode:"", gradeAr:"",
-  school:null, day:"", session:"",
+  school:null, day:"", session:"", koranDay:"", koranSession:"", gender:"",
   photo:null, photoPreview:null, photoBase64:null
 });
 
@@ -123,7 +148,38 @@ function SeatPicker({ grade, availability, selectedDay, selectedSession, onSelec
   );
 }
 
-// ─── Main App ─────────────────────────────────────────────────────────────────
+// ─── Koran Session Picker ─────────────────────────────────────────────────────
+function KoranSessionPicker({ selectedDay, selectedSession, onSelect }) {
+  return (
+    <div style={{ marginTop:10 }}>
+      <div style={{ fontSize:12, fontWeight:600, color:GREEN, direction:"rtl", marginBottom:8 }}>
+        اختر موعد الدراسة / Unterrichtszeit wählen:
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+        {KORAN_SESSIONS.map(({day, dayAr, session}) => {
+          const isSelected = selectedDay===day && selectedSession===session;
+          return (
+            <div key={day+session} onClick={()=>onSelect(day,session)}
+              style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px",
+                border:`2px solid ${isSelected?GREEN:"#c8e8c8"}`,
+                borderRadius:10, cursor:"pointer",
+                background:isSelected?"#eafff0":"#f8fdf9",
+                transition:"all 0.15s" }}>
+              <span style={{ fontSize:20 }}>🕌</span>
+              <span style={{ flex:1 }}>
+                <span style={{ fontWeight:700, display:"block", color:"#1a3a1a", fontSize:13 }}>
+                  {dayAr} / {day}
+                </span>
+                <span style={{ fontSize:12, color:"#5a7a5a" }}>⏰ {session}</span>
+              </span>
+              {isSelected && <span style={{ width:22,height:22,borderRadius:"50%",background:GREEN,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12 }}>✓</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 export default function App() {
   const [step, setStep]         = useState(0);
   const [parent, setParent]     = useState({ name:"", nameErr:false, email:"", address:"", phone:"" });
@@ -182,6 +238,11 @@ export default function App() {
       if (needsGrade && !ch.grade) e[`cg${i}`]=1;
       const isTest = ch.grade==="Einstufungstest erforderlich";
       if (needsGrade && ch.grade && !isTest && (!ch.day||!ch.session)) e[`ct${i}`]=1;
+      // Koran: requires session
+      const needsKoran = ch.school?.key==="Koran"||ch.school?.key==="Beide";
+      if (needsKoran && (!ch.koranDay||!ch.koranSession)) e[`ck${i}`]=1;
+      // Gender required if over 10
+      if (needsKoran && ch.dob && calcAge(ch.dob)>10 && !ch.gender) e[`cgender${i}`]=1;
     });
     setErrors(e);
     return !Object.keys(e).length;
@@ -206,6 +267,9 @@ export default function App() {
             name:ch.name, dob:ch.dob, grade:ch.grade, gradeAr:ch.gradeAr,
             school:ch.school, ids:ch.ids||[],
             day:ch.day||"", session:ch.session||"",
+            koranDay:ch.koranDay||"", koranSession:ch.koranSession||"",
+            gender:ch.gender||"",
+            ageGroup: (ch.school?.key==="Koran"||ch.school?.key==="Beide") ? getAgeGroup(ch.dob) : "",
             photoBase64:ch.photoBase64||null,
           })),
           photoConsent:true, submittedAt:fd.submittedAt,
@@ -411,11 +475,104 @@ export default function App() {
                       <span style={{ direction:"ltr",display:"block",marginTop:2 }}>We will contact you to schedule the placement test.</span>
                     </div>
                   )}
+
+                  {/* Koran section for Beide */}
+                  {ch.school?.key==="Beide" && (
+                    <div style={{ marginTop:6,marginBottom:14,padding:"14px",background:"#f0fff4",border:"1px solid #c8e8c8",borderRadius:12 }}>
+                      <div style={{ fontWeight:700,color:GREEN,direction:"rtl",marginBottom:8,fontSize:13 }}>🕌 موعد مدرسة القرآن الكريم</div>
+                      <KoranSessionPicker
+                        selectedDay={ch.koranDay} selectedSession={ch.koranSession}
+                        onSelect={(d,s)=>{ uc(i,"koranDay",d); uc(i,"koranSession",s); }}
+                      />
+                      {errors[`ck${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:6 }}>
+                        <span style={{ direction:"rtl",display:"block" }}>يرجى اختيار موعد القرآن</span>
+                        <span style={{ direction:"ltr",display:"block" }}>Bitte Koran-Unterrichtszeit wählen</span>
+                      </div>}
+                      {ch.dob && (
+                        <div style={{ marginTop:8,background:"#fff",border:"1px solid #c8e8c8",borderRadius:8,padding:"8px 12px",fontSize:11 }}>
+                          <span style={{ direction:"rtl",display:"block",fontWeight:600,color:GREEN }}>الفئة العمرية: {getAgeGroup(ch.dob)}</span>
+                        </div>
+                      )}
+                      {ch.dob && calcAge(ch.dob)>10 && (
+                        <div style={{ marginTop:8 }}>
+                          <div style={{ fontSize:12,fontWeight:600,color:GREEN,direction:"rtl",marginBottom:6 }}>الجنس / Geschlecht:</div>
+                          <div style={{ display:"flex",gap:8 }}>
+                            {[["Männlich","ذكر","👦"],["Weiblich","أنثى","👧"]].map(([de,ar,icon])=>(
+                              <div key={de} onClick={()=>uc(i,"gender",de)}
+                                style={{ flex:1,padding:"8px",borderRadius:8,cursor:"pointer",textAlign:"center",
+                                  border:`2px solid ${ch.gender===de?GREEN:"#d0e8d0"}`,
+                                  background:ch.gender===de?"#eafff0":"#f8fdf9",
+                                  fontWeight:ch.gender===de?700:400 }}>
+                                <div style={{ fontSize:18 }}>{icon}</div>
+                                <div style={{ direction:"rtl",fontSize:12 }}>{ar}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {errors[`cgender${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:4,direction:"rtl" }}>يرجى تحديد الجنس</div>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : ch.school?.key==="Koran" ? (
-                <div style={{ marginBottom:14,background:"#eaffea",border:"1px solid #3A7D3A",borderRadius:10,padding:"10px 14px" }}>
-                  <div style={{ fontSize:13,fontWeight:600,color:"#3A7D3A",direction:"rtl" }}>🕌 مدرسة القرآن الكريم</div>
-                  <div style={{ fontSize:11,color:"#5a9a5a",direction:"ltr",marginTop:3 }}>Koran-Schule — kein Klassenauswahl erforderlich</div>
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ background:"#eaffea",border:"1px solid #3A7D3A",borderRadius:10,padding:"10px 14px",marginBottom:10 }}>
+                    <div style={{ fontSize:13,fontWeight:600,color:"#3A7D3A",direction:"rtl" }}>🕌 مدرسة القرآن الكريم — لا يوجد حد أقصى للطلاب</div>
+                    <div style={{ fontSize:11,color:"#5a9a5a",direction:"ltr",marginTop:3 }}>Koran-Schule — keine Platzbeschränkung</div>
+                  </div>
+
+                  {/* Koran session picker */}
+                  <label style={S.label}>
+                    <span style={{ display:"block",direction:"rtl" }}>موعد الدراسة / Unterrichtszeit</span>
+                    <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Tag und Uhrzeit wählen</span>
+                  </label>
+                  <KoranSessionPicker
+                    selectedDay={ch.koranDay} selectedSession={ch.koranSession}
+                    onSelect={(d,s)=>{ uc(i,"koranDay",d); uc(i,"koranSession",s); }}
+                  />
+                  {errors[`ck${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:6 }}>
+                    <span style={{ direction:"rtl",display:"block" }}>يرجى اختيار موعد الدراسة</span>
+                    <span style={{ direction:"ltr",display:"block" }}>Bitte Unterrichtszeit wählen</span>
+                  </div>}
+
+                  {/* Age group display */}
+                  {ch.dob && (
+                    <div style={{ marginTop:10,background:"#f0f9f3",border:"1px solid #c8e8c8",borderRadius:8,padding:"8px 14px",fontSize:12 }}>
+                      <span style={{ direction:"rtl",display:"block",fontWeight:600,color:GREEN }}>
+                        الفئة العمرية: {getAgeGroup(ch.dob)}
+                      </span>
+                      <span style={{ direction:"ltr",display:"block",fontSize:11,color:"#5a7a5a" }}>
+                        Altersgruppe: {getAgeGroup(ch.dob)} | Alter: {calcAge(ch.dob)} Jahre
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Gender — only if over 10 */}
+                  {ch.dob && calcAge(ch.dob) > 10 && (
+                    <div style={{ marginTop:10 }}>
+                      <label style={S.label}>
+                        <span style={{ display:"block",direction:"rtl" }}>الجنس (مطلوب لمن هم فوق 10 سنوات)</span>
+                        <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Geschlecht (erforderlich für Über-10-Jährige)</span>
+                      </label>
+                      <div style={{ display:"flex",gap:10 }}>
+                        {[["Männlich","ذكر","👦"],["Weiblich","أنثى","👧"]].map(([de,ar,icon])=>(
+                          <div key={de} onClick={()=>uc(i,"gender",de)}
+                            style={{ flex:1,padding:"10px 14px",borderRadius:10,cursor:"pointer",textAlign:"center",
+                              border:`2px solid ${ch.gender===de?GREEN:"#d0e8d0"}`,
+                              background:ch.gender===de?"#eafff0":"#f8fdf9",
+                              fontWeight:ch.gender===de?700:400, transition:"all 0.15s" }}>
+                            <div style={{ fontSize:22 }}>{icon}</div>
+                            <div style={{ direction:"rtl",fontSize:13,color:"#1a3a1a" }}>{ar}</div>
+                            <div style={{ fontSize:11,color:"#5a7a6a" }}>{de}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {errors[`cgender${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:4 }}>
+                        <span style={{ direction:"rtl",display:"block" }}>يرجى تحديد الجنس</span>
+                        <span>Bitte Geschlecht angeben</span>
+                      </div>}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
@@ -474,6 +631,11 @@ export default function App() {
                     <div style={{ fontSize:11,color:"#5a7a6a" }}>{ch.grade} | {ch.dob}</div>
                     <div style={{ fontSize:11,color:ch.school?.color||"#555",fontWeight:600 }}>{ch.school?.icon} {ch.school?.de} — {ch.school?.fee}€</div>
                     {ch.day && <div style={{ fontSize:11,color:BLUE }}>📅 {ch.day} | ⏰ {ch.session}</div>}
+                    {ch.koranDay && <div style={{ fontSize:11,color:GREEN }}>🕌 {ch.koranDay} | ⏰ {ch.koranSession}</div>}
+                    {ch.gender && <div style={{ fontSize:11,color:"#555" }}>👤 {ch.gender==="Männlich"?"ذكر / Männlich":"أنثى / Weiblich"}</div>}
+                    {ch.dob && (ch.school?.key==="Koran"||ch.school?.key==="Beide") && (
+                      <div style={{ fontSize:11,color:GREEN }}>📊 {getAgeGroup(ch.dob)}</div>
+                    )}
                   </div>
                 </div>
               </div>
