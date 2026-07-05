@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const EMAILJS_PUBLIC_KEY = "4mH8vLefPnezHWPnx";
-const EMAILJS_SERVICE_ID = "service_w2djxq3";
-const SCHOOL_EMAIL       = "itqanschule@gmail.com";
-const ADMIN_EMAIL        = "hassan.nofal@student.medicalschool-berlin.de";
-const SHEETS_URL         = "https://script.google.com/macros/s/AKfycbwcnTVWK1tFFgb8XCp3veZCCPPBy6NFsTsPYvhlcs28nsb_1dkvWksQnD0GuPcsEcQrzA/exec";
-const YEAR_SHORT         = "26";
-const YEAR_FULL          = "2026/2027";
+const SHEETS_URL  = "https://script.google.com/macros/s/AKfycbwcnTVWK1tFFgb8XCp3veZCCPPBy6NFsTsPYvhlcs28nsb_1dkvWksQnD0GuPcsEcQrzA/exec";
+const SCHOOL_EMAIL = "itqanschule@gmail.com";
+const YEAR_FULL   = "2026/2027";
+const BLUE  = "#2E5DA8";
+const GOLD  = "#C8960A";
+const GREEN = "#3A7D3A";
+const CAPACITY = {
+  "Vorschule 1": { "Samstag":{"09:00–12:45":16,"13:00–16:45":16}, "Sonntag":{"09:00–12:45":20,"13:00–16:45":24} },
+  "Vorschule 2": { "Samstag":{"09:00–12:45":24,"13:00–16:45":24}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
+  "Vorschule 3": { "Samstag":{"09:00–12:45":23,"13:00–16:45":32}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
+  "Klasse 1":    { "Samstag":{"09:00–12:45":20,"13:00–16:45":20}, "Sonntag":{"09:00–12:45":23,"13:00–16:45":24} },
+  "Klasse 2":    { "Samstag":{"09:00–12:45":16,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 3":    { "Samstag":{"09:00–12:45":null,"13:00–16:45":12},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 4":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":null},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Klasse 5":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+};
+const getCapacity = (grade,day,sess) => CAPACITY[grade]?.[day]?.[sess] ?? null;
 
 const GRADES = [
   { ar:"تحضيري 1", de:"Vorschule 1", code:"PRE1" },
@@ -22,10 +31,14 @@ const GRADES = [
 ];
 
 const SCHOOLS = [
-  { key:"Arabisch", ar:"مدرسة اللغة العربية",  de:"Arabisch-Schule",  icon:"📖", fee:350, color:"#2E5DA8" },
-  { key:"Koran",    ar:"مدرسة القرآن الكريم",  de:"Koran-Schule",     icon:"🕌", fee:200, color:"#3A7D3A" },
-  { key:"Beide",    ar:"المدرستان معاً",        de:"Beide Schulen",    icon:"🎓", fee:550, color:"#7B2DA8" },
+  { key:"Arabisch", ar:"مدرسة اللغة العربية", de:"Arabisch-Schule", icon:"📖", fee:350, color:BLUE },
+  { key:"Koran",    ar:"مدرسة القرآن الكريم", de:"Koran-Schule",    icon:"🕌", fee:200, color:GREEN },
+  { key:"Beide",    ar:"المدرستان معاً",       de:"Beide Schulen",   icon:"🎓", fee:550, color:"#7B2DA8" },
 ];
+
+const DAYS     = ["Samstag / السبت", "Sonntag / الأحد"];
+const SESSIONS = ["09:00–12:45", "13:00–16:45"];
+const DAYS_KEY     = ["Samstag", "Sonntag"];
 
 const STEPS = [
   ["بيانات ولي الأمر","Erziehungsberechtigte"],
@@ -33,253 +46,120 @@ const STEPS = [
   ["المراجعة والإرسال","Überprüfung"],
 ];
 
-const BLUE = "#2E5DA8";
-const GOLD = "#C8960A";
-
-// Only German/Latin characters allowed in name fields
 const LATIN_ONLY = /^[a-zA-ZäöüÄÖÜß\s\-'.]*$/;
-const isLatinOnly = v => LATIN_ONLY.test(v);
-
+const isLatin = v => LATIN_ONLY.test(v);
 const emptyChild = () => ({
-  name:"", nameErr:false,
-  dob:"", grade:"", gradeCode:"", gradeAr:"",
-  school: null,
+  name:"", nameErr:false, dob:"", grade:"", gradeCode:"", gradeAr:"",
+  school:null, day:"", session:"",
   photo:null, photoPreview:null, photoBase64:null
 });
 
-const makeId = (prefix, code, seq) =>
-  `${prefix}-${code}-${YEAR_SHORT}-${String(seq).padStart(3,"0")}`;
+// ─── Seat availability display ────────────────────────────────────────────────
+function SeatPicker({ grade, availability, selectedDay, selectedSession, onSelect }) {
+  if (!grade || grade === "Einstufungstest erforderlich") return null;
 
-// ─── EmailJS ──────────────────────────────────────────────────────────────────
-function loadEmailJS() {
-  return new Promise(resolve => {
-    if (window.emailjs) { window.emailjs.init(EMAILJS_PUBLIC_KEY); resolve(window.emailjs); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
-    s.onload = () => { window.emailjs.init(EMAILJS_PUBLIC_KEY); resolve(window.emailjs); };
-    document.head.appendChild(s);
-  });
-}
+  return (
+    <div style={{ marginTop:10 }}>
+      <div style={{ fontSize:12, fontWeight:600, color:BLUE, direction:"rtl", marginBottom:8 }}>
+        اختر يوم ووقت الدراسة / Unterrichtstag und -zeit wählen:
+      </div>
+      {DAYS_KEY.map((day, di) => (
+        <div key={day} style={{ marginBottom:10 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#1a3a1a", marginBottom:6 }}>{DAYS[di]}</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {SESSIONS.map(sess => {
+              const cap = getCapacity(grade, day, sess);
 
-// ─── Contract HTML (Arabic + German bilingual) ───────────────────────────────
-function buildContractHTML(parent, children, photoConsent) {
-  const childRows = children.map((ch,i) => {
-    const sc = ch.school;
-    return `
-    <tr style="background:${i%2?"#f9f9ff":"#fff"}">
-      <td style="padding:8px 12px;border:1px solid #ddd;font-weight:bold">${ch.name}</td>
-      <td style="padding:8px 12px;border:1px solid #ddd">${ch.dob}</td>
-      <td style="padding:8px 12px;border:1px solid #ddd">${ch.grade} / ${ch.gradeAr}</td>
-      <td style="padding:8px 12px;border:1px solid #ddd">${sc ? sc.icon+" "+sc.de+" / "+sc.ar : "—"}</td>
-      <td style="padding:8px 12px;border:1px solid #ddd;font-family:monospace;font-weight:bold;color:${sc?.color||"#333"}">${ch.ids ? ch.ids.join("<br>") : "—"}</td>
-      <td style="padding:8px 12px;border:1px solid #ddd">${sc ? sc.fee+"€" : "—"}</td>
-    </tr>`}).join("");
+              // غير متاح لهذا الصف/اليوم/الوقت
+              if (cap === null) return (
+                <div key={sess} style={{ padding:"10px 14px", borderRadius:10, minWidth:150,
+                  border:"2px solid #e0e0e0", background:"#f5f5f5", opacity:0.5 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:"#999" }}>{sess}</div>
+                  <div style={{ fontSize:11, marginTop:4, color:"#bbb" }}>— غير متاح / Nicht verfügbar</div>
+                </div>
+              );
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<style>
-* { box-sizing: border-box; }
-body { font-family: Arial, sans-serif; margin: 0; padding: 24px; color: #1a1a1a; background: #fafafa; }
-.page { max-width: 780px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.1); }
-.header { background: linear-gradient(135deg, #2E5DA8, #1a3a8a); color: white; padding: 24px 28px; }
-.header h2 { margin: 0 0 4px; font-size: 20px; }
-.header p { margin: 0; font-size: 13px; opacity: 0.85; }
-.body { padding: 24px 28px; }
-.bi { display: flex; flex-direction: column; gap: 2px; }
-.ar { direction: rtl; font-size: 14px; }
-.de { direction: ltr; font-size: 12px; color: #5a7a6a; }
-.section { margin-bottom: 20px; }
-.section-title { font-size: 14px; font-weight: bold; color: #2E5DA8; border-bottom: 2px solid #2E5DA8; padding-bottom: 6px; margin-bottom: 12px; }
-.section-title .de { color: #5a9a6a; font-weight: normal; }
-.row { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
-.label { min-width: 160px; color: #666; }
-.val { font-weight: 600; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th { background: #2E5DA8; color: white; padding: 8px 12px; text-align: right; font-weight: 600; }
-.warning-box { background: #fff8e1; border: 2px solid #C8960A; border-radius: 8px; padding: 14px 18px; margin: 20px 0; }
-.sign-box { display: flex; gap: 40px; margin-top: 40px; }
-.sign-line { flex: 1; border-top: 1px solid #999; padding-top: 6px; font-size: 12px; color: #666; }
-.footer { background: #f0f4ff; padding: 12px 20px; text-align: center; font-size: 11px; color: #666; border-top: 1px solid #d0d8f0; }
-.photo-consent { background: #fff3e0; border: 1px solid #e0a030; border-radius: 8px; padding: 12px 16px; font-size: 13px; }
-</style></head><body>
-<div class="page">
-<div class="header">
-  <h2>🕌 Itqan Schule — مدرسة إتقان</h2>
-  <p>Bildungsvertrag / عقد التعليم &nbsp;|&nbsp; Schuljahr ${YEAR_FULL}</p>
-</div>
-<div class="body">
+              // بيانات من السيرفر أو تقدير محلي
+              const slot      = availability?.[grade]?.[day]?.[sess];
+              const used      = slot?.used ?? 0;
+              const avail     = slot?.available ?? cap;
+              const isFull    = slot ? slot.full : false;
+              const isSelected = selectedDay === day && selectedSession === sess;
 
-<div class="section">
-  <div class="section-title">
-    <span class="ar">👤 بيانات ولي الأمر</span>
-    <span class="de">Erziehungsberechtigte/r</span>
-  </div>
-  <div class="row"><span class="label"><span class="ar">الاسم</span><span class="de">Name</span></span><span class="val">${parent.name}</span></div>
-  <div class="row"><span class="label"><span class="ar">البريد الإلكتروني</span><span class="de">E-Mail</span></span><span class="val">${parent.email}</span></div>
-  <div class="row"><span class="label"><span class="ar">العنوان</span><span class="de">Adresse</span></span><span class="val">${parent.address}</span></div>
-  <div class="row"><span class="label"><span class="ar">الجوال / واتساب</span><span class="de">Handy / WhatsApp</span></span><span class="val">${parent.phone}</span></div>
-</div>
-
-<div class="section">
-  <div class="section-title">
-    <span class="ar">📚 الأبناء المسجلون</span>
-    <span class="de">Angemeldete Kinder</span>
-  </div>
-  <table>
-    <thead><tr>
-      <th>الاسم / Name</th>
-      <th>الميلاد / Geburtsdatum</th>
-      <th>الصف / Klasse</th>
-      <th>المدرسة / Schule</th>
-      <th>رقم الطالب / ID</th>
-      <th>الرسوم / Gebühren</th>
-    </tr></thead>
-    <tbody>${childRows}</tbody>
-  </table>
-</div>
-
-<div class="section">
-  <div class="section-title">
-    <span class="ar">💰 شروط الدفع</span>
-    <span class="de">Zahlungsbedingungen</span>
-  </div>
-  <div class="row"><span class="label"><span class="ar">طريقة الدفع</span><span class="de">Zahlungsart</span></span><span class="val">In 4 Raten / على 4 أقساط</span></div>
-  <div class="row"><span class="label">IBAN</span><span class="val">DE23 5176 2434 0016 3591 22</span></div>
-  <div class="row"><span class="label">BIC</span><span class="val">GENODE51BIK</span></div>
-  <div class="row"><span class="label"><span class="ar">صاحب الحساب</span><span class="de">Kontoinhaber</span></span><span class="val">ITQAN</span></div>
-  <div class="row"><span class="label"><span class="ar">سبب التحويل</span><span class="de">Verwendungszweck</span></span><span class="val"><span class="ar">اسم الطفل / الفترة</span> — Name des Kindes / Zeitraum</span></div>
-</div>
-
-<div class="section">
-  <div class="section-title">
-    <span class="ar">📋 شروط المشاركة</span>
-    <span class="de">Teilnahmevoraussetzungen</span>
-  </div>
-  <p style="font-size:13px;margin:0 0 4px"><span class="ar">يُعتبر التسجيل سارياً بعد:</span> Die Anmeldung gilt nach:</p>
-  <ul style="font-size:13px;margin:6px 0;padding-right:20px">
-    <li><span class="ar">حضور اجتماع أولياء الأمور</span> / Besuch des Elternabends</li>
-    <li><span class="ar">سداد رسوم الدراسة</span> / Zahlung der Kursgebühren</li>
-    <li><span class="ar">استكمال استمارة التسجيل</span> / Vollständiges Anmeldeformular</li>
-  </ul>
-</div>
-
-<div class="section">
-  <div class="section-title">
-    <span class="ar">⚖️ مدة العقد والإلغاء</span>
-    <span class="de">Vertragsdauer und Kündigung</span>
-  </div>
-  <ul style="font-size:13px;margin:6px 0;padding-right:20px">
-    <li><span class="ar">العقد ساري حتى نهاية العام الدراسي يونيو 2026</span> / Vertrag gilt bis Schuljahresende (Juni 2026)</li>
-    <li><span class="ar">الإلغاء الاعتيادي: كتابةً قبل 30.06.2026</span> / Ordentliche Kündigung: schriftlich bis 30.06.2026</li>
-    <li><span class="ar">الإلغاء الفوري: عند التأخر في الدفع أكثر من شهرين</span> / Fristlose Kündigung bei Zahlungsverzug &gt;2 Monate</li>
-  </ul>
-</div>
-
-<div class="photo-consent">
-  <strong><span class="ar">📸 موافقة التصوير</span> / Foto- und Videoeinwilligung</strong><br><br>
-  ${photoConsent
-    ? `<span style="color:green">✅</span> <span class="ar">يوافق ولي الأمر على تصوير الطفل خلال الأنشطة والفعاليات المدرسية واستخدام الصور لأغراض التوثيق والإعلام لمدرسة إتقان.</span><br>
-       <span style="color:green">✅</span> Der/Die Erziehungsberechtigte stimmt der Aufnahme und Verwendung von Fotos/Videos des Kindes bei Schulaktivitäten für Dokumentation und Öffentlichkeitsarbeit der Itqan Schule zu.`
-    : `<span style="color:red">❌</span> <span class="ar">لا يوافق ولي الأمر على التصوير.</span><br>
-       <span style="color:red">❌</span> Der/Die Erziehungsberechtigte stimmt der Aufnahme nicht zu.`
-  }
-</div>
-
-<div class="section" style="margin-top:20px">
-  <div class="section-title">
-    <span class="ar">🔒 حماية البيانات</span>
-    <span class="de">Datenschutz (DSGVO)</span>
-  </div>
-  <p style="font-size:12px;color:#555;margin:0"><span class="ar">تُحفظ البيانات وفق DSGVO وتُستخدم حصراً لإدارة التعليم ولا تُشارك مع أطراف ثالثة.</span><br>
-  Daten werden gemäß DSGVO ausschließlich zur Unterrichtsverwaltung gespeichert und nicht an Dritte weitergegeben.</p>
-</div>
-
-<div class="warning-box">
-  <strong><span class="ar">📝 يرجى التوقيع وإعادة الإرسال إلى:</span> Bitte unterschreiben und zurücksenden:</strong><br>
-  <a href="mailto:${SCHOOL_EMAIL}">${SCHOOL_EMAIL}</a>
-</div>
-
-<div class="sign-box">
-  <div class="sign-line"><span class="ar">توقيع ولي الأمر 1 / Unterschrift Erziehungsberechtigte/r 1</span></div>
-  <div class="sign-line"><span class="ar">توقيع ولي الأمر 2 / Unterschrift Erziehungsberechtigte/r 2</span></div>
-</div>
-<p style="font-size:12px;color:#888;margin-top:8px"><span class="ar">المكان والتاريخ: برلين،</span> Ort, Datum: Berlin, ____________</p>
-
-</div>
-<div class="footer">
-  Itqan Schule &nbsp;|&nbsp; Britzkestraße 10, 12347 Berlin &nbsp;|&nbsp; itqanschule@gmail.com &nbsp;|&nbsp; 0178 8978556
-</div>
-</div>
-</body></html>`;
-}
-
-function buildCardHTML(child, studentId, school) {
-  const color = school.color;
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-body{margin:0;font-family:Arial,sans-serif}
-.card{width:360px;background:white;border-radius:12px;overflow:hidden;border:2px solid ${color};box-shadow:0 4px 20px rgba(0,0,0,0.25)}
-.hdr{background:${color};padding:10px 16px;color:white;text-align:center}
-.hdr h3{margin:0;font-size:14px}.hdr small{font-size:10px;opacity:.85}
-.body{display:flex;padding:14px 14px 10px;align-items:flex-start;gap:12px}
-.photo-box{width:82px;height:100px;border-radius:8px;border:2px solid ${color};overflow:hidden;flex-shrink:0;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:28px}
-.photo-box img{width:100%;height:100%;object-fit:cover}
-.info{flex:1}
-.info-row{margin-bottom:5px;font-size:12px}
-.info-label{color:#888;font-size:10px;display:block}
-.info-val{font-weight:bold;color:#1a1a1a}
-.id-badge{background:#f0f4ff;border:1px solid ${color};border-radius:5px;padding:3px 8px;font-family:monospace;font-size:12px;font-weight:bold;color:${color};display:inline-block;margin-top:3px;letter-spacing:.5px}
-.warn{background:#8B0000;color:white;text-align:center;padding:8px 10px;font-size:11px;font-weight:bold;line-height:1.6}
-.foot{background:#f8f8f8;text-align:center;padding:5px;font-size:9px;color:#888}
-</style></head><body>
-<div class="card">
-  <div class="hdr">
-    <h3>🕌 Itqan Schule — مدرسة إتقان</h3>
-    <small>بطاقة تعريف الطالب — Schülerausweis | ${YEAR_FULL}</small>
-  </div>
-  <div class="body">
-    <div class="photo-box">${child.photoPreview
-      ? `<img src="${child.photoPreview}" alt="">`
-      : "📷"}</div>
-    <div class="info">
-      <div class="info-row"><span class="info-label">الاسم / Name</span><span class="info-val">${child.name}</span></div>
-      <div class="info-row"><span class="info-label">تاريخ الميلاد / Geburtsdatum</span><span class="info-val">${child.dob}</span></div>
-      <div class="info-row"><span class="info-label">الصف / Klasse</span><span class="info-val">${child.grade} / ${child.gradeAr}</span></div>
-      <div class="info-row"><span class="info-label">المدرسة / Schule</span><span class="info-val">${school.icon} ${school.de}</span></div>
-      <div class="info-row"><span class="info-label">رقم الطالب / Schüler-ID</span><div class="id-badge">${studentId}</div></div>
+              return (
+                <div key={sess} onClick={() => !isFull && onSelect(day, sess)}
+                  style={{ padding:"10px 14px", borderRadius:10,
+                    cursor: isFull ? "not-allowed" : "pointer", minWidth:150,
+                    border:`2px solid ${isSelected?BLUE:isFull?"#e0c0c0":"#d0e8d8"}`,
+                    background: isSelected?"#eaf0ff":isFull?"#fff0f0":"#f8fdf9",
+                    opacity: isFull?0.7:1, transition:"all 0.15s" }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:isSelected?BLUE:isFull?"#c0392b":"#1a3a1a" }}>
+                    {sess}
+                  </div>
+                  <div style={{ fontSize:11, marginTop:4,
+                    color: isFull?"#c0392b": avail<=3?"#e07000":"#3a7a3a" }}>
+                    {isFull
+                      ? "🚫 المقاعد ممتلئة / Ausgebucht"
+                      : !availability
+                        ? `${cap} مقعد / Plätze gesamt`
+                        : avail<=3
+                          ? `⚠ ${avail} متبقي / Plätze frei`
+                          : `✅ ${avail} / ${cap} مقعد / Plätze`
+                    }
+                  </div>
+                  {availability && (
+                    <div style={{ marginTop:6, height:4, borderRadius:2, background:"#e0e0e0", overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${Math.min(100,(used/cap)*100)}%`,
+                        background:isFull?"#c0392b":avail<=3?"#e07000":"#3a7a3a", transition:"width 0.3s" }}/>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
-  </div>
-  <div class="warn">⚠ هذه البطاقة شرط لاستلام الطفل من المدرسة<br>Diese Karte ist erforderlich, um das Kind abzuholen</div>
-  <div class="foot">itqanschule@gmail.com | 0178 8978556 | Britzkestr. 10, 12347 Berlin</div>
-</div></body></html>`;
+  );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [step, setStep]               = useState(0);
-  const [parent, setParent]           = useState({ name:"", nameErr:false, email:"", address:"", phone:"" });
-  const [children, setChildren]       = useState([emptyChild()]);
-  const [photoConsent, setPhotoConsent] = useState(true);
-  const [errors, setErrors]           = useState({});
-  const [status, setStatus]           = useState("idle");
-  const [statusMsg, setStatusMsg]     = useState("");
-  const [finalData, setFinalData]     = useState(null);
+  const [step, setStep]         = useState(0);
+  const [parent, setParent]     = useState({ name:"", nameErr:false, email:"", address:"", phone:"" });
+  const [children, setChildren] = useState([emptyChild()]);
+  const [errors, setErrors]     = useState({});
+  const [status, setStatus]     = useState("idle");
+  const [statusMsg, setStatusMsg] = useState("");
+  const [finalData, setFinalData] = useState(null);
+  const [availability, setAvailability] = useState(null);
+  const [loadingAvail, setLoadingAvail] = useState(false);
+
+  // جلب المقاعد المتاحة عند فتح خطوة الأبناء
+  useEffect(() => {
+    if (step === 1 && !availability) {
+      setLoadingAvail(true);
+      fetch(SHEETS_URL)
+        .then(r => r.json())
+        .then(d => { if (d.availability) setAvailability(d.availability); })
+        .catch(() => {})
+        .finally(() => setLoadingAvail(false));
+    }
+  }, [step]);
 
   const up = (k,v) => setParent(p=>({...p,[k]:v}));
   const uc = (i,k,v) => setChildren(c=>c.map((ch,j)=>j===i?{...ch,[k]:v}:ch));
 
-  // Latin-only handler for parent name
   const handleParentName = v => {
-    const ok = isLatinOnly(v);
-    setParent(p=>({...p, name: ok ? v : p.name, nameErr: !ok && v.length > 0 && !isLatinOnly(v)}));
+    const ok = isLatin(v);
+    setParent(p=>({...p, name:ok?v:p.name, nameErr:!ok&&v.length>0}));
   };
-
-  // Latin-only handler for child name
-  const handleChildName = (i, v) => {
-    const ok = isLatinOnly(v);
-    uc(i, "name", ok ? v : children[i].name);
-    uc(i, "nameErr", !ok && v.length > 0);
+  const handleChildName = (i,v) => {
+    const ok = isLatin(v);
+    uc(i,"name",ok?v:children[i].name);
+    uc(i,"nameErr",!ok&&v.length>0);
   };
-
-  const handlePhoto = (i, file) => {
+  const handlePhoto = (i,file) => {
     if (!file) return;
     const r = new FileReader();
     r.onload = e => { uc(i,"photoPreview",e.target.result); uc(i,"photoBase64",e.target.result.split(",")[1]); };
@@ -289,17 +169,19 @@ export default function App() {
   const validate = () => {
     const e = {};
     if (step===0) {
-      if (!parent.name.trim() || !isLatinOnly(parent.name)) e.name=1;
+      if (!parent.name.trim()||!isLatin(parent.name)) e.name=1;
       if (!/\S+@\S+\.\S+/.test(parent.email)) e.email=1;
       if (!parent.address.trim()) e.address=1;
       if (parent.phone.trim().length<9) e.phone=1;
     }
     if (step===1) children.forEach((ch,i)=>{
-      if (!ch.name.trim() || !isLatinOnly(ch.name)) e[`cn${i}`]=1;
+      if (!ch.name.trim()||!isLatin(ch.name)) e[`cn${i}`]=1;
       if (!ch.dob) e[`cd${i}`]=1;
       if (!ch.school) e[`cs${i}`]=1;
-      // Grade required only for Arabic or Beide
-      if ((ch.school?.key==="Arabisch" || ch.school?.key==="Beide") && !ch.grade) e[`cg${i}`]=1;
+      const needsGrade = ch.school?.key==="Arabisch"||ch.school?.key==="Beide";
+      if (needsGrade && !ch.grade) e[`cg${i}`]=1;
+      const isTest = ch.grade==="Einstufungstest erforderlich";
+      if (needsGrade && ch.grade && !isTest && (!ch.day||!ch.session)) e[`ct${i}`]=1;
     });
     setErrors(e);
     return !Object.keys(e).length;
@@ -308,109 +190,80 @@ export default function App() {
   const next = () => { if(validate()) setStep(s=>s+1); };
   const prev = () => setStep(s=>s-1);
 
-  const assignIds = () => children.map((ch,i)=>{
-    const g = GRADES.find(g=>g.de===ch.grade);
-    const code = g?.code||"X";
-    const seq = i+1;
-    const sc = ch.school;
-    if (!sc) return {...ch, ids:[]};
-    if (sc.key==="Beide") return {...ch, ids:[makeId("AR",code,seq), makeId("KR",code,seq)]};
-    const prefix = sc.key==="Koran"?"KR":"AR";
-    return {...ch, ids:[makeId(prefix,code,seq)]};
-  });
-
   const handleSubmit = async () => {
     if (!validate()) return;
     setStatus("sending");
-    setStatusMsg("جاري إعداد المستندات... / Dokumente werden erstellt...");
-
-    const childrenWithIds = assignIds();
-    const fd = { parent, children: childrenWithIds, photoConsent, submittedAt: new Date().toLocaleString("de-DE") };
+    setStatusMsg("جاري الإرسال... / Wird gesendet...");
+    const fd = { parent, children, photoConsent:true, submittedAt:new Date().toLocaleString("de-DE") };
     setFinalData(fd);
-
     try {
-      setStatusMsg("جاري الإرسال... / Wird gesendet...");
-
       const response = await fetch(SHEETS_URL, {
-        method: "POST",
-        mode:   "cors",
-        headers: { "Content-Type": "text/plain" },
+        method:"POST", mode:"cors",
+        headers:{"Content-Type":"text/plain"},
         body: JSON.stringify({
           parent,
-          children: childrenWithIds.map(ch => ({
-            name:        ch.name,
-            dob:         ch.dob,
-            grade:       ch.grade,
-            gradeAr:     ch.gradeAr,
-            school:      ch.school,
-            ids:         ch.ids,
-            photoBase64: ch.photoBase64 || null,
+          children: children.map(ch=>({
+            name:ch.name, dob:ch.dob, grade:ch.grade, gradeAr:ch.gradeAr,
+            school:ch.school, ids:ch.ids||[],
+            day:ch.day||"", session:ch.session||"",
+            photoBase64:ch.photoBase64||null,
           })),
-          photoConsent: true,
-          submittedAt:  fd.submittedAt,
+          photoConsent:true, submittedAt:fd.submittedAt,
         })
       });
-
       const result = await response.json();
-      console.log("Apps Script response:", result);
-
-      if (result.status === "error") {
-        setStatusMsg("⚠ خطأ: " + result.message);
+      if (result.status==="ok" && result.children) {
+        setFinalData(prev=>({...prev,
+          children:prev.children.map((ch,i)=>({...ch,ids:result.children[i]?.ids||ch.ids||[]}))
+        }));
       }
-
+      if (result.status==="error") setStatusMsg("⚠ "+result.message);
       setStatus("success"); setStatusMsg("");
     } catch(err) {
-      console.error(err);
       setStatus("success");
-      setStatusMsg("تم الحفظ — يرجى التحقق من إعداد قوالب EmailJS / Bitte EmailJS-Templates prüfen");
+      setStatusMsg("تم الحفظ — يرجى التحقق من الاتصال / Verbindung prüfen");
     }
   };
 
   // ── Success ───────────────────────────────────────────────────────────────
-  if (status==="success" && finalData) {
-    return (
-      <div style={S.page}>
-        <div style={S.successCard}>
-          <div style={{ width:70,height:70,borderRadius:"50%",background:"#1a6b3c",color:"#fff",fontSize:34,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px" }}>✓</div>
-          <div style={{ fontSize:20,fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:4 }}>تم التسجيل بنجاح!</div>
-          <div style={{ fontSize:13,color:"#5a7a6a",direction:"ltr",marginBottom:20 }}>Anmeldung erfolgreich übermittelt!</div>
-          {statusMsg && <div style={{ background:"#fff8e1",border:"1px solid #f0c040",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#7a6000",marginBottom:16 }}>{statusMsg}</div>}
+  if (status==="success" && finalData) return (
+    <div style={S.page}>
+      <div style={S.successCard}>
+        <div style={{ width:70,height:70,borderRadius:"50%",background:"#1a6b3c",color:"#fff",fontSize:34,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px" }}>✓</div>
+        <div style={{ fontSize:20,fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:4 }}>تم التسجيل بنجاح!</div>
+        <div style={{ fontSize:13,color:"#5a7a6a",direction:"ltr",marginBottom:20 }}>Anmeldung erfolgreich übermittelt!</div>
+        {statusMsg && <div style={{ background:"#fff8e1",border:"1px solid #f0c040",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#7a6000",marginBottom:12 }}>{statusMsg}</div>}
 
-          {/* Email recipients */}
-          <div style={{ background:"#f0f4ff",borderRadius:12,padding:"14px 16px",marginBottom:18,border:`1px solid ${BLUE}` }}>
-            <div style={{ fontWeight:700,color:BLUE,direction:"rtl",marginBottom:10,fontSize:14 }}>📧 تم إرسال المستندات إلى / Dokumente gesendet an:</div>
-            <div style={{ borderRadius:8,background:"#fff",padding:"8px 12px",marginBottom:8,border:"1px solid #d0d8f0" }}>
-              <div style={{ fontSize:13,direction:"rtl",marginBottom:2 }}>• <strong>{finalData.parent.email}</strong></div>
-              
-           
+        <div style={{ background:"#f0f4ff",borderRadius:12,padding:"14px 16px",marginBottom:18,border:`1px solid ${BLUE}` }}>
+          <div style={{ fontWeight:700,color:BLUE,direction:"rtl",marginBottom:8,fontSize:13 }}>📧 سيتم إرسال العقد إلى / Vertrag gesendet an:</div>
+          <div style={{ fontSize:13,direction:"rtl" }}>• <strong>{finalData.parent.email}</strong> — العقد كاملاً</div>
+          <div style={{ fontSize:13,direction:"rtl",marginTop:4 }}>• <strong>{SCHOOL_EMAIL}</strong> — العقد + بطاقات التعريف</div>
+        </div>
 
-          </div>
-
-          {/* Student IDs */}
-          <div style={{ fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:10 }}>🎓 أرقام تعريف الطلاب / Schüler-IDs:</div>
-          {finalData.children.map((ch,i)=>(
-            <div key={i} style={{ background:"#f0f9f3",borderRadius:10,padding:"12px 16px",marginBottom:10,border:"1.5px solid #c8e8d5" }}>
-              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
-                {ch.photoPreview && <img src={ch.photoPreview} alt="" style={{ width:40,height:48,borderRadius:6,objectFit:"cover",border:"2px solid "+BLUE }}/>}
-                <div>
-                  <strong style={{ display:"block" }}>{ch.name}</strong>
-                  <span style={{ fontSize:12,color:"#5a7a6a" }}>{ch.grade} / {ch.gradeAr} &nbsp;|&nbsp; {ch.school?.icon} {ch.school?.de}</span>
-                </div>
-              </div>
-              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                {(ch.ids||[]).map((id,j)=>(
-                  <div key={j} style={{ fontFamily:"monospace",background:j===0?"#e8f0ff":"#eaffea",borderRadius:6,padding:"5px 10px",color:j===0?BLUE:"#3A7D3A",fontWeight:700,border:`1px solid ${j===0?BLUE:"#3A7D3A"}`,fontSize:13 }}>
-                    {j===0?"📖":"🕌"} {id}
-                  </div>
-                ))}
+        <div style={{ fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:10 }}>🎓 أرقام التعريف / Schüler-IDs:</div>
+        {finalData.children.map((ch,i)=>(
+          <div key={i} style={{ background:"#f0f9f3",borderRadius:10,padding:"12px 16px",marginBottom:10,border:"1.5px solid #c8e8d5" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:8 }}>
+              {ch.photoPreview && <img src={ch.photoPreview} alt="" style={{ width:38,height:46,borderRadius:6,objectFit:"cover",border:"2px solid "+BLUE }}/>}
+              <div>
+                <strong style={{ display:"block" }}>{ch.name}</strong>
+                <span style={{ fontSize:11,color:"#5a7a6a" }}>{ch.grade} | {ch.school?.icon} {ch.school?.de}</span>
+                {ch.day && <span style={{ fontSize:11,color:BLUE,display:"block" }}>📅 {ch.day} | ⏰ {ch.session}</span>}
               </div>
             </div>
-          ))}
-          <div style={{ fontSize:11,color:"#9aaa9a",marginTop:10,textAlign:"center",direction:"rtl" }}>احتفظ بهذه الأرقام للرجوع إليها مستقبلاً</div>
-        </div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+              {(ch.ids||[]).map((id,j)=>(
+                <div key={j} style={{ fontFamily:"monospace",background:j===0?"#e8f0ff":"#eaffea",borderRadius:6,padding:"5px 10px",color:j===0?BLUE:GREEN,fontWeight:700,border:`1px solid ${j===0?BLUE:GREEN}`,fontSize:13 }}>
+                  {j===0?"📖":"🕌"} {id}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div style={{ fontSize:11,color:"#9aaa9a",marginTop:10,textAlign:"center",direction:"rtl" }}>احتفظ بهذه الأرقام للرجوع إليها مستقبلاً</div>
       </div>
-    );
-  }
+    </div>
+  );
 
   // ── Form ──────────────────────────────────────────────────────────────────
   return (
@@ -439,26 +292,19 @@ export default function App() {
 
       <div style={S.card}>
 
-        {/* ── STEP 0: Parent ── */}
+        {/* STEP 0: Parent */}
         {step===0 && <>
           <SecTitle ar="بيانات ولي الأمر" de="Angaben zum Erziehungsberechtigten"/>
-
-          {/* Parent Name — Latin only */}
           <div style={{ marginBottom:14 }}>
             <label style={S.label}>
               <span style={{ display:"block",direction:"rtl" }}>الاسم الكامل</span>
               <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Vollständiger Name (Lateinische Buchstaben)</span>
             </label>
-            <input
-              style={{ ...inp(errors.name||parent.nameErr) }}
-              placeholder="Vor- und Nachname"
-              value={parent.name}
-              onChange={e => handleParentName(e.target.value)}
-            />
-            {parent.nameErr && <div style={{ color:"#e05555",fontSize:11,marginTop:3,direction:"rtl" }}>⚠ يُرجى الكتابة بالحروف الألمانية فقط / Nur lateinische Buchstaben erlaubt</div>}
+            <input style={inp(errors.name||parent.nameErr)} placeholder="Vor- und Nachname"
+              value={parent.name} onChange={e=>handleParentName(e.target.value)}/>
+            {parent.nameErr && <Err ar="يُرجى الكتابة بالحروف الألمانية فقط" de="Nur lateinische Buchstaben erlaubt"/>}
             {errors.name && !parent.nameErr && <div style={{ color:"#e05555",fontSize:11,marginTop:3 }}>Pflichtfeld / مطلوب</div>}
           </div>
-
           <Fld ar="البريد الإلكتروني" de="E-Mail-Adresse" err={errors.email}>
             <input style={inp(errors.email)} type="email" placeholder="beispiel@email.de" value={parent.email} onChange={e=>up("email",e.target.value)}/>
           </Fld>
@@ -470,11 +316,13 @@ export default function App() {
           </Fld>
         </>}
 
-        {/* ── STEP 1: Children ── */}
+        {/* STEP 1: Children */}
         {step===1 && <>
           <SecTitle ar="بيانات الأبناء واختيار المدرسة" de="Kinder & Schulwahl"/>
+          {loadingAvail && <div style={{ textAlign:"center",color:BLUE,fontSize:12,marginBottom:12 }}>⏳ جاري تحميل المقاعد المتاحة... / Verfügbarkeit wird geladen...</div>}
+
           {children.map((ch,i)=>(
-            <div key={i} style={{ background:"#f0f9f3",border:"1.5px solid #c8e8d5",borderRadius:14,padding:"16px 16px",marginBottom:16 }}>
+            <div key={i} style={{ background:"#f0f9f3",border:"1.5px solid #c8e8d5",borderRadius:14,padding:"16px",marginBottom:16 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
                 <span style={{ fontWeight:700,color:"#0d3b26",fontSize:14 }}>
                   <span style={{ direction:"rtl" }}>الطفل {i+1}</span>
@@ -483,45 +331,23 @@ export default function App() {
                 {children.length>1 && <button style={{ background:"#ffe0e0",color:"#c0392b",border:"none",borderRadius:8,padding:"4px 12px",cursor:"pointer",fontSize:12 }} onClick={()=>setChildren(c=>c.filter((_,j)=>j!==i))}>✕ Entfernen</button>}
               </div>
 
-              {/* Child name — Latin only */}
+              {/* Name */}
               <div style={{ marginBottom:14 }}>
                 <label style={S.label}>
                   <span style={{ display:"block",direction:"rtl" }}>اسم الطفل</span>
                   <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Name des Kindes (Lateinische Buchstaben)</span>
                 </label>
-                <input
-                  style={inp(errors[`cn${i}`]||ch.nameErr)}
-                  placeholder="Vor- und Nachname"
-                  value={ch.name}
-                  onChange={e => handleChildName(i, e.target.value)}
-                />
-                {ch.nameErr && <div style={{ color:"#e05555",fontSize:11,marginTop:3,direction:"rtl" }}>⚠ يُرجى الكتابة بالحروف الألمانية فقط / Nur lateinische Buchstaben erlaubt</div>}
+                <input style={inp(errors[`cn${i}`]||ch.nameErr)} placeholder="Vor- und Nachname"
+                  value={ch.name} onChange={e=>handleChildName(i,e.target.value)}/>
+                {ch.nameErr && <Err ar="يُرجى الكتابة بالحروف الألمانية فقط" de="Nur lateinische Buchstaben erlaubt"/>}
               </div>
 
+              {/* DOB */}
               <Fld ar="تاريخ الميلاد" de="Geburtsdatum" err={errors[`cd${i}`]}>
                 <input style={inp(errors[`cd${i}`])} type="date" value={ch.dob} onChange={e=>uc(i,"dob",e.target.value)}/>
               </Fld>
 
-              {/* Grade — only for Arabic school */}
-              {(ch.school?.key === "Arabisch" || ch.school?.key === "Beide") ? (
-                <Fld ar="الصف الدراسي (مدرسة اللغة العربية)" de="Schulklasse (Arabisch-Schule)" err={errors[`cg${i}`]}>
-                  <select style={inp(errors[`cg${i}`])} value={ch.grade} onChange={e=>{
-                    const g=GRADES.find(g=>g.de===e.target.value);
-                    uc(i,"grade",e.target.value); uc(i,"gradeCode",g?.code||""); uc(i,"gradeAr",g?.ar||"");
-                  }}>
-                    <option value="">-- Klasse wählen / اختر الصف --</option>
-                    {GRADES.map(g=><option key={g.code} value={g.de}>{g.de} / {g.ar}</option>)}
-                  </select>
-                </Fld>
-              ) : ch.school?.key === "Koran" ? (
-                <div style={{ marginBottom:14, background:"#eaffea", border:"1px solid #3A7D3A", borderRadius:10, padding:"10px 14px" }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#3A7D3A", direction:"rtl" }}>🕌 مدرسة القرآن الكريم</div>
-                  <div style={{ fontSize:11, color:"#5a9a5a", direction:"ltr", marginTop:3 }}>Koran-Schule — kein Klassenauswahl erforderlich</div>
-                  <div style={{ fontSize:11, color:"#5a9a5a", direction:"rtl", marginTop:2 }}>لا يُشترط اختيار صف لمدرسة القرآن</div>
-                </div>
-              ) : null}
-
-              {/* School per child */}
+              {/* School */}
               <div style={{ marginBottom:14 }}>
                 <label style={S.label}>
                   <span style={{ display:"block",direction:"rtl" }}>المدرسة المراد الالتحاق بها</span>
@@ -529,7 +355,10 @@ export default function App() {
                 </label>
                 <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
                   {SCHOOLS.map(sc=>(
-                    <div key={sc.key} onClick={()=>{ uc(i,"school",sc); if(sc.key==="Koran"){ uc(i,"grade",""); uc(i,"gradeCode",""); uc(i,"gradeAr",""); } }} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",border:`2px solid ${ch.school?.key===sc.key?sc.color:"#d0e8d8"}`,borderRadius:10,cursor:"pointer",background:ch.school?.key===sc.key?"#f0f4ff":"#f8fdf9",transition:"all 0.15s" }}>
+                    <div key={sc.key} onClick={()=>{
+                      uc(i,"school",sc);
+                      if(sc.key==="Koran"){ uc(i,"grade",""); uc(i,"gradeCode",""); uc(i,"gradeAr",""); uc(i,"day",""); uc(i,"session",""); }
+                    }} style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",border:`2px solid ${ch.school?.key===sc.key?sc.color:"#d0e8d8"}`,borderRadius:10,cursor:"pointer",background:ch.school?.key===sc.key?"#f0f4ff":"#f8fdf9",transition:"all 0.15s" }}>
                       <span style={{ fontSize:20 }}>{sc.icon}</span>
                       <span style={{ flex:1 }}>
                         <span style={{ fontWeight:600,display:"block",direction:"rtl",color:"#1a3a1a",fontSize:13 }}>{sc.ar}</span>
@@ -541,6 +370,54 @@ export default function App() {
                 </div>
                 {errors[`cs${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:4 }}>يرجى اختيار المدرسة / Bitte Schule wählen</div>}
               </div>
+
+              {/* Grade — بعد اختيار المدرسة مباشرةً */}
+              {(ch.school?.key==="Arabisch"||ch.school?.key==="Beide") ? (
+                <>
+                  <Fld ar="الصف الدراسي (مدرسة اللغة العربية)" de="Schulklasse (Arabisch-Schule)" err={errors[`cg${i}`]}>
+                    <select style={inp(errors[`cg${i}`])} value={ch.grade} onChange={e=>{
+                      const g=GRADES.find(g=>g.de===e.target.value);
+                      uc(i,"grade",e.target.value); uc(i,"gradeCode",g?.code||""); uc(i,"gradeAr",g?.ar||"");
+                      uc(i,"day",""); uc(i,"session",""); // إعادة ضبط الموعد عند تغيير الصف
+                    }}>
+                      <option value="">-- Klasse wählen / اختر الصف --</option>
+                      {GRADES.map(g=><option key={g.code} value={g.de}>{g.de} / {g.ar}</option>)}
+                    </select>
+                  </Fld>
+
+                  {/* اختيار الموعد — يظهر بعد اختيار الصف وليس اختبار تحديد المستوى */}
+                  {ch.grade && ch.grade !== "Einstufungstest erforderlich" && (
+                    <div style={{ marginBottom:14 }}>
+                      <label style={S.label}>
+                        <span style={{ display:"block",direction:"rtl" }}>وقت الدراسة / Unterrichtszeit</span>
+                        <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Tag und Uhrzeit auswählen</span>
+                      </label>
+                      <SeatPicker
+                        grade={ch.grade}
+                        availability={availability}
+                        selectedDay={ch.day}
+                        selectedSession={ch.session}
+                        onSelect={(day,sess)=>{ uc(i,"day",day); uc(i,"session",sess); }}
+                      />
+                      {errors[`ct${i}`] && <div style={{ color:"#e05555",fontSize:11,marginTop:6 }}>
+                        <span style={{ direction:"rtl",display:"block" }}>يرجى اختيار يوم ووقت الدراسة</span>
+                        <span style={{ direction:"ltr",display:"block" }}>Bitte Tag und Uhrzeit wählen</span>
+                      </div>}
+                    </div>
+                  )}
+                  {ch.grade === "Einstufungstest erforderlich" && (
+                    <div style={{ background:"#fff8e1",border:"1px solid #f0c040",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#7a5000" }}>
+                      <span style={{ direction:"rtl",display:"block",fontWeight:600 }}>📝 سيتم التواصل معك لتحديد موعد اختبار تحديد المستوى</span>
+                      <span style={{ direction:"ltr",display:"block",marginTop:2 }}>We will contact you to schedule the placement test.</span>
+                    </div>
+                  )}
+                </>
+              ) : ch.school?.key==="Koran" ? (
+                <div style={{ marginBottom:14,background:"#eaffea",border:"1px solid #3A7D3A",borderRadius:10,padding:"10px 14px" }}>
+                  <div style={{ fontSize:13,fontWeight:600,color:"#3A7D3A",direction:"rtl" }}>🕌 مدرسة القرآن الكريم</div>
+                  <div style={{ fontSize:11,color:"#5a9a5a",direction:"ltr",marginTop:3 }}>Koran-Schule — kein Klassenauswahl erforderlich</div>
+                </div>
+              ) : null}
 
               {/* Photo */}
               <div>
@@ -562,73 +439,51 @@ export default function App() {
             </div>
           ))}
 
-          <button style={{ width:"100%",padding:"11px",background:"transparent",border:"2px dashed #4a9a6a",color:"#2d7a4f",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer" }}
+          <button style={{ width:"100%",padding:"11px",background:"transparent",border:"2px dashed #4a9a6a",color:"#2d7a4f",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",marginBottom:16 }}
             onClick={()=>setChildren(c=>[...c,emptyChild()])}>
             + إضافة طفل آخر / Weiteres Kind hinzufügen
           </button>
 
-          {/* Photo consent — mandatory, display only */}
-          <div style={{ marginTop:18,background:"#fff8e1",border:"1.5px solid #f0c040",borderRadius:12,padding:"14px 16px" }}>
-            <div style={{ fontWeight:700,color:"#5a4000",direction:"rtl",marginBottom:6,fontSize:13 }}>📸 موافقة تصوير الأنشطة / Foto-Einwilligung</div>
-            <div style={{ fontSize:12,color:"#5a4000",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>
-              بالتسجيل في مدرسة إتقان، يوافق ولي الأمر على تصوير الطفل خلال الأنشطة والفعاليات المدرسية واستخدام الصور لأغراض التوثيق والإعلام.
-            </div>
-            <div style={{ fontSize:10,color:"#7a6000",direction:"ltr" }}>
-              By registering, the guardian agrees to the recording and use of photos/videos of the child during school activities for documentation and public relations of Itqan Schule.
-            </div>
-            <div style={{ marginTop:10,background:"#fff3cc",borderRadius:8,padding:"8px 12px",fontWeight:700,color:"#5a4000",fontSize:13,textAlign:"center" }}>
+          {/* Photo consent */}
+          <div style={{ background:"#fff8e1",border:"1.5px solid #f0c040",borderRadius:12,padding:"14px 16px" }}>
+            <div style={{ fontWeight:700,color:"#5a4000",direction:"rtl",marginBottom:4,fontSize:13 }}>📸 موافقة التصوير / Foto-Einwilligung</div>
+            <div style={{ fontSize:11,color:"#5a4000",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>بالتسجيل، يوافق ولي الأمر على تصوير الطفل خلال الأنشطة المدرسية لأغراض التوثيق والإعلام.</div>
+            <div style={{ fontSize:10,color:"#7a6000",direction:"ltr" }}>By registering, the guardian agrees to the use of photos/videos during school activities.</div>
+            <div style={{ marginTop:8,background:"#fff3cc",borderRadius:8,padding:"7px 12px",fontWeight:700,color:"#5a4000",fontSize:12,textAlign:"center" }}>
               ✅ موافقة تلقائية عند التسجيل / Mit der Anmeldung automatisch zugestimmt
             </div>
           </div>
         </>}
 
-        {/* ── STEP 2: Review ── */}
+        {/* STEP 2: Review */}
         {step===2 && <>
-          <SecTitle ar="مراجعة البيانات قبل الإرسال" de="Daten überprüfen vor dem Absenden"/>
-
+          <SecTitle ar="مراجعة البيانات قبل الإرسال" de="Daten überprüfen"/>
           <RevSec ar="ولي الأمر" de="Erziehungsberechtigte/r">
             <RR ar="الاسم" de="Name" val={parent.name}/>
             <RR ar="الإيميل" de="E-Mail" val={parent.email}/>
             <RR ar="العنوان" de="Adresse" val={parent.address}/>
             <RR ar="الجوال" de="Handy" val={parent.phone}/>
           </RevSec>
-
-          <RevSec ar="الأبناء المسجلون" de="Angemeldete Kinder">
-            {assignIds().map((ch,i)=>(
+          <RevSec ar="الأبناء" de="Kinder">
+            {children.map((ch,i)=>(
               <div key={i} style={{ borderTop:i?"1px dashed #b0d8c0":"none",paddingTop:i?10:0,marginTop:i?10:0 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:6 }}>
                   {ch.photoPreview && <img src={ch.photoPreview} alt="" style={{ width:36,height:44,borderRadius:6,objectFit:"cover",border:"2px solid "+BLUE }}/>}
                   <div>
-                    <strong style={{ display:"block" }}>{ch.name}</strong>
-                    <span style={{ fontSize:11,color:"#5a7a6a" }}>{ch.grade} / {ch.gradeAr} | {ch.dob}</span>
-                    <span style={{ fontSize:11,color:ch.school?.color||"#555",fontWeight:600,display:"block" }}>{ch.school?.icon} {ch.school?.de} / {ch.school?.ar} — {ch.school?.fee}€</span>
+                    <strong>{ch.name}</strong>
+                    <div style={{ fontSize:11,color:"#5a7a6a" }}>{ch.grade} | {ch.dob}</div>
+                    <div style={{ fontSize:11,color:ch.school?.color||"#555",fontWeight:600 }}>{ch.school?.icon} {ch.school?.de} — {ch.school?.fee}€</div>
+                    {ch.day && <div style={{ fontSize:11,color:BLUE }}>📅 {ch.day} | ⏰ {ch.session}</div>}
                   </div>
-                </div>
-                <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginTop:4 }}>
-                  {(ch.ids||[]).map((id,j)=>(
-                    <span key={j} style={{ fontFamily:"monospace",background:j===0?"#e8f0ff":"#eaffea",borderRadius:6,padding:"4px 10px",fontSize:12,color:j===0?BLUE:"#3A7D3A",fontWeight:700,border:`1px solid ${j===0?BLUE:"#3A7D3A"}` }}>
-                      {j===0?"📖":"🕌"} {id}
-                    </span>
-                  ))}
                 </div>
               </div>
             ))}
           </RevSec>
-
-          <RevSec ar="موافقة التصوير" de="Foto-Einwilligung">
-            <RR ar="الموافقة" de="Einwilligung" val="✅ موافق تلقائياً / Automatisch zugestimmt"/>
-          </RevSec>
-
-          {/* Email info box — simple bilingual message */}
-          <div style={{ background:"#f0f4ff",border:`1.5px solid ${BLUE}`,borderRadius:12,padding:"16px 18px",marginBottom:14,textAlign:"center" }}>
-            <div style={{ fontSize:24,marginBottom:10 }}>📧</div>
-            <div style={{ fontSize:15,fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:6 }}>
-              سيتم إرسال العقد إلى إيميل ولي الأمر
-            </div>
-            <div style={{ fontSize:13,color:"#2E5DA8",direction:"ltr",fontWeight:600 }}>
-              The contract will be sent to the guardian's email address
-            </div>
-            <div style={{ marginTop:10,background:"#fff",borderRadius:8,padding:"8px 14px",border:"1px solid #d0d8f0",fontSize:13,color:"#3a5a7a" }}>
+          <div style={{ background:"#f0f4ff",border:`1.5px solid ${BLUE}`,borderRadius:12,padding:"14px 16px",textAlign:"center" }}>
+            <div style={{ fontSize:22,marginBottom:8 }}>📧</div>
+            <div style={{ fontSize:14,fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:4 }}>سيتم إرسال العقد إلى إيميل ولي الأمر</div>
+            <div style={{ fontSize:12,color:BLUE,direction:"ltr",fontWeight:600,marginBottom:8 }}>The contract will be sent to the guardian's email</div>
+            <div style={{ background:"#fff",borderRadius:8,padding:"8px 14px",border:"1px solid #d0d8f0",fontSize:13,color:"#3a5a7a" }}>
               <strong>{parent.email}</strong>
             </div>
           </div>
@@ -646,7 +501,8 @@ export default function App() {
                 <div style={{ direction:"rtl",fontSize:13 }}>التالي ←</div>
                 <div style={{ fontSize:10,color:"#a0c0ff" }}>Weiter →</div>
               </button>
-            : <button style={{ ...S.submitBtn, opacity:status==="sending"?0.7:1, cursor:status==="sending"?"wait":"pointer" }} onClick={handleSubmit} disabled={status==="sending"}>
+            : <button style={{ ...S.submitBtn,opacity:status==="sending"?0.7:1,cursor:status==="sending"?"wait":"pointer" }}
+                onClick={handleSubmit} disabled={status==="sending"}>
                 <div style={{ direction:"rtl",fontSize:13 }}>{status==="sending"?"⏳ جاري الإرسال...":"✓ إرسال الطلب"}</div>
                 <div style={{ fontSize:10,color:"#5a4000" }}>{status==="sending"?"Wird gesendet...":"Antrag absenden"}</div>
               </button>}
@@ -673,6 +529,12 @@ const Fld = ({ar,de,err,children}) => (
     {err && <div style={{ color:"#e05555",fontSize:11,marginTop:3 }}>Pflichtfeld / مطلوب</div>}
   </div>
 );
+const Err = ({ar,de}) => (
+  <div style={{ color:"#e05555",fontSize:11,marginTop:3 }}>
+    <span style={{ direction:"rtl",display:"block" }}>⚠ {ar}</span>
+    <span style={{ direction:"ltr",display:"block" }}>{de}</span>
+  </div>
+);
 const RevSec = ({ar,de,children}) => (
   <div style={{ marginBottom:14,background:"#f8fdf9",borderRadius:12,padding:"12px 14px",border:"1px solid #d8eee2" }}>
     <div style={{ fontWeight:700,color:"#0d3b26",marginBottom:8 }}>
@@ -691,7 +553,7 @@ const RR = ({ar,de,val}) => (
     <span style={{ fontWeight:600,color:"#1a3a1a",flex:1 }}>{val}</span>
   </div>
 );
-const inp = e => ({ ...S.input, ...(e?{border:"1.5px solid #e05555"}:{}) });
+const inp = e => ({ ...S.input,...(e?{border:"1.5px solid #e05555"}:{}) });
 const S = {
   page:{ minHeight:"100vh",background:"linear-gradient(135deg,#0d3b26 0%,#1a6b3c 100%)",padding:"20px 14px",fontFamily:"'Segoe UI',Tahoma,Arial,sans-serif" },
   card:{ maxWidth:660,margin:"0 auto",background:"#fff",borderRadius:20,padding:"22px 18px 16px",boxShadow:"0 20px 60px rgba(0,0,0,0.25)" },
