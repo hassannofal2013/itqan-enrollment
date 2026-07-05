@@ -381,14 +381,8 @@ export default function App() {
             <div style={{ fontWeight:700,color:BLUE,direction:"rtl",marginBottom:10,fontSize:14 }}>📧 تم إرسال المستندات إلى / Dokumente gesendet an:</div>
             <div style={{ borderRadius:8,background:"#fff",padding:"8px 12px",marginBottom:8,border:"1px solid #d0d8f0" }}>
               <div style={{ fontSize:13,direction:"rtl",marginBottom:2 }}>• <strong>{finalData.parent.email}</strong></div>
-              <div style={{ fontSize:11,color:"#5a7a6a",direction:"rtl" }}>سيتم إرسال العقد على إيميل ولي الأمر باللغة العربية والألمانية</div>
-              <div style={{ fontSize:10,color:"#8a9aaa",direction:"ltr" }}>Contract sent in Arabic & German to parent</div>
-            </div>
-            <div style={{ borderRadius:8,background:"#fff",padding:"8px 12px",marginBottom:8,border:"1px solid #d0d8f0" }}>
-              <div style={{ fontSize:13,direction:"rtl",marginBottom:2 }}>• <strong>{SCHOOL_EMAIL}</strong></div>
-              <div style={{ fontSize:11,color:"#5a7a6a",direction:"rtl" }}>العقد + بطاقات التعريف لجميع الطلاب</div>
-              <div style={{ fontSize:10,color:"#8a9aaa",direction:"ltr" }}>Contract + ID cards for all children</div>
-            </div>
+              
+           
 
           </div>
 
