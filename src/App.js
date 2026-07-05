@@ -331,10 +331,10 @@ export default function App() {
     try {
       setStatusMsg("جاري الإرسال... / Wird gesendet...");
 
-      await fetch(SHEETS_URL, {
+      const response = await fetch(SHEETS_URL, {
         method: "POST",
-        mode:   "no-cors",
-        headers: { "Content-Type": "application/json" },
+        mode:   "cors",
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           parent,
           children: childrenWithIds.map(ch => ({
@@ -350,6 +350,13 @@ export default function App() {
           submittedAt:  fd.submittedAt,
         })
       });
+
+      const result = await response.json();
+      console.log("Apps Script response:", result);
+
+      if (result.status === "error") {
+        setStatusMsg("⚠ خطأ: " + result.message);
+      }
 
       setStatus("success"); setStatusMsg("");
     } catch(err) {
