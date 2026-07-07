@@ -651,7 +651,7 @@ export default function App() {
                   📸 موافقة اختيارية: التصوير والنشر الإعلامي العام
                 </div>
                 <div style={{ fontSize:11,color:"#2d5a3d",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>
-                  أوافق على استخدام صور طفلي في الأنشطة الإعلامية العامة للمدرسة (الموقع الإلكتروني، وسائل التواصل الاجتماعي، المطبوعات). (اختيارية)
+                  أوافق على استخدام صور طفلي في الأنشطة الإعلامية العامة للمدرسة (الموقع الإلكتروني، وسائل التواصل الاجتماعي، المطبوعات). 
                 </div>
                 <div style={{ fontSize:10,color:"#5a9a6a",direction:"ltr" }}>
                   Optional: I agree to the use of my child's photos for general publicity (website, social media, print materials).
@@ -693,7 +693,7 @@ export default function App() {
           </RevSec>
           <RevSec ar="الموافقات" de="Einwilligungen">
             <RR ar="واتساب أولياء الأمور (إلزامية)" de="WhatsApp-Elterngruppe (Pflicht)" val={consentWhatsapp?"✅ موافق":"❌ غير موافق"}/>
-            <RR ar="النشر الإعلامي العام (اختيارية)" de="Allgemeine Öffentlichkeitsarbeit (freiwillig)" val={consentMedia?"✅ موافق":"❌ غير موافق"}/>
+            <RR ar="النشر الإعلامي العام " de="Allgemeine Öffentlichkeitsarbeit (freiwillig)" val={consentMedia?"✅ موافق":"❌ غير موافق"}/>
           </RevSec>
           <div style={{ background:"#f0f4ff",border:`1.5px solid ${BLUE}`,borderRadius:12,padding:"14px 16px",textAlign:"center" }}>
             <div style={{ fontSize:22,marginBottom:8 }}>📧</div>
