@@ -193,16 +193,19 @@ export default function App() {
   const [consentWhatsapp, setConsentWhatsapp] = useState(true);
   const [consentMedia, setConsentMedia] = useState(true);
 
-  // جلب المقاعد المتاحة عند فتح خطوة الأبناء
+  // جلب أحدث بيانات المقاعد المتاحة من شيت جوجل
+  const fetchAvailability = () => {
+    setLoadingAvail(true);
+    fetch(SHEETS_URL)
+      .then(r => r.json())
+      .then(d => { if (d.availability) setAvailability(d.availability); })
+      .catch(() => {})
+      .finally(() => setLoadingAvail(false));
+  };
+
+  // جلب المقاعد المتاحة في كل مرة يتم فيها فتح خطوة الأبناء (بيانات حديثة من الشيت)
   useEffect(() => {
-    if (step === 1 && !availability) {
-      setLoadingAvail(true);
-      fetch(SHEETS_URL)
-        .then(r => r.json())
-        .then(d => { if (d.availability) setAvailability(d.availability); })
-        .catch(() => {})
-        .finally(() => setLoadingAvail(false));
-    }
+    if (step === 1) fetchAvailability();
   }, [step]);
 
   const up = (k,v) => setParent(p=>({...p,[k]:v}));
@@ -456,6 +459,7 @@ export default function App() {
                       const g=GRADES.find(g=>g.de===e.target.value);
                       uc(i,"grade",e.target.value); uc(i,"gradeCode",g?.code||""); uc(i,"gradeAr",g?.ar||"");
                       uc(i,"day",""); uc(i,"session",""); // إعادة ضبط الموعد عند تغيير الصف
+                      fetchAvailability(); // تحديث عدد المقاعد المتاحة مباشرة من الشيت عند اختيار الصف
                     }}>
                       <option value="">-- Klasse wählen / اختر الصف --</option>
                       {GRADES.map(g=><option key={g.code} value={g.de}>{g.de} / {g.ar}</option>)}
@@ -647,7 +651,7 @@ export default function App() {
                   📸 موافقة اختيارية: التصوير والنشر الإعلامي العام
                 </div>
                 <div style={{ fontSize:11,color:"#2d5a3d",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>
-                  أوافق على استخدام صور طفلي في الأنشطة الإعلامية العامة للمدرسة (الموقع الإلكتروني، وسائل التواصل الاجتماعي، المطبوعات). 
+                  أوافق على استخدام صور طفلي في الأنشطة الإعلامية العامة للمدرسة (الموقع الإلكتروني، وسائل التواصل الاجتماعي، المطبوعات). (اختيارية)
                 </div>
                 <div style={{ fontSize:10,color:"#5a9a6a",direction:"ltr" }}>
                   Optional: I agree to the use of my child's photos for general publicity (website, social media, print materials).
@@ -689,7 +693,7 @@ export default function App() {
           </RevSec>
           <RevSec ar="الموافقات" de="Einwilligungen">
             <RR ar="واتساب أولياء الأمور (إلزامية)" de="WhatsApp-Elterngruppe (Pflicht)" val={consentWhatsapp?"✅ موافق":"❌ غير موافق"}/>
-            <RR ar="النشر الإعلامي العام " de="Allgemeine Öffentlichkeitsarbeit (freiwillig)" val={consentMedia?"✅ موافق":"❌ غير موافق"}/>
+            <RR ar="النشر الإعلامي العام (اختيارية)" de="Allgemeine Öffentlichkeitsarbeit (freiwillig)" val={consentMedia?"✅ موافق":"❌ غير موافق"}/>
           </RevSec>
           <div style={{ background:"#f0f4ff",border:`1.5px solid ${BLUE}`,borderRadius:12,padding:"14px 16px",textAlign:"center" }}>
             <div style={{ fontSize:22,marginBottom:8 }}>📧</div>
