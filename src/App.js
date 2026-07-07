@@ -190,6 +190,8 @@ export default function App() {
   const [finalData, setFinalData] = useState(null);
   const [availability, setAvailability] = useState(null);
   const [loadingAvail, setLoadingAvail] = useState(false);
+  const [consentWhatsapp, setConsentWhatsapp] = useState(true);
+  const [consentMedia, setConsentMedia] = useState(true);
 
   // جلب المقاعد المتاحة عند فتح خطوة الأبناء
   useEffect(() => {
@@ -246,6 +248,7 @@ export default function App() {
       // Gender required if over 10
       if (needsKoran && ch.dob && calcAge(ch.dob)>10 && !ch.gender) e[`cgender${i}`]=1;
     });
+    if (step===1 && !consentWhatsapp) e.consentWhatsapp = 1;
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -257,7 +260,7 @@ export default function App() {
     if (!validate()) return;
     setStatus("sending");
     setStatusMsg("جاري الإرسال... / Wird gesendet...");
-    const fd = { parent, children, photoConsent:true, submittedAt:new Date().toLocaleString("de-DE") };
+    const fd = { parent, children, consentWhatsapp, consentMedia, submittedAt:new Date().toLocaleString("de-DE") };
     setFinalData(fd);
     try {
       const response = await fetch(SHEETS_URL, {
@@ -274,7 +277,7 @@ export default function App() {
             ageGroup: (ch.school?.key==="Koran"||ch.school?.key==="Beide") ? getAgeGroup(ch.dob) : "",
             photoBase64:ch.photoBase64||null,
           })),
-          photoConsent:true, submittedAt:fd.submittedAt,
+          consentWhatsapp, consentMedia, submittedAt:fd.submittedAt,
         })
       });
       const result = await response.json();
@@ -611,14 +614,46 @@ export default function App() {
             + إضافة طفل آخر / Weiteres Kind hinzufügen
           </button>
 
-          {/* Photo consent */}
-          <div style={{ background:"#fff8e1",border:"1.5px solid #f0c040",borderRadius:12,padding:"14px 16px" }}>
-            <div style={{ fontWeight:700,color:"#5a4000",direction:"rtl",marginBottom:4,fontSize:13 }}>📸 موافقة التصوير / Foto-Einwilligung</div>
-            <div style={{ fontSize:11,color:"#5a4000",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>بالتسجيل، يوافق ولي الأمر على تصوير الطفل خلال الأنشطة المدرسية لأغراض التوثيق والإعلام.</div>
-            <div style={{ fontSize:10,color:"#7a6000",direction:"ltr" }}>By registering, the guardian agrees to the use of photos/videos during school activities.</div>
-            <div style={{ marginTop:8,background:"#fff3cc",borderRadius:8,padding:"7px 12px",fontWeight:700,color:"#5a4000",fontSize:12,textAlign:"center" }}>
-              ✅ موافقة تلقائية عند التسجيل / Mit der Anmeldung automatisch zugestimmt
-            </div>
+          {/* Photo consent - WhatsApp (mandatory) */}
+          <div style={{ background:"#fff8e1",border:`1.5px solid ${errors.consentWhatsapp?"#e05555":"#f0c040"}`,borderRadius:12,padding:"14px 16px",marginBottom:12 }}>
+            <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer" }}>
+              <input type="checkbox" checked={consentWhatsapp} onChange={e=>setConsentWhatsapp(e.target.checked)}
+                style={{ width:20,height:20,marginTop:2,flexShrink:0,accentColor:GOLD,cursor:"pointer" }}/>
+              <span>
+                <div style={{ fontWeight:700,color:"#5a4000",direction:"rtl",marginBottom:4,fontSize:13 }}>
+                  📱 موافقة إلزامية: التصوير للنشر في مجموعة واتساب أولياء الأمور
+                </div>
+                <div style={{ fontSize:11,color:"#5a4000",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>
+                  أوافق على تصوير طفلي خلال الأنشطة المدرسية ونشر الصور في مجموعة واتساب الخاصة بأولياء الأمور. (إلزامية للتسجيل)
+                </div>
+                <div style={{ fontSize:10,color:"#7a6000",direction:"ltr" }}>
+                  Mandatory: I agree that photos/videos of my child may be shared in the parents' WhatsApp group.
+                </div>
+              </span>
+            </label>
+            {errors.consentWhatsapp && <div style={{ marginTop:6 }}>
+              <div style={{ color:"#e05555",fontSize:11,direction:"rtl" }}>⚠ هذه الموافقة إلزامية لإتمام التسجيل</div>
+              <div style={{ color:"#e05555",fontSize:11,direction:"ltr" }}>This consent is required to complete registration</div>
+            </div>}
+          </div>
+
+          {/* Photo consent - general media (optional) */}
+          <div style={{ background:"#f0f9f3",border:"1.5px solid #c8e8d5",borderRadius:12,padding:"14px 16px" }}>
+            <label style={{ display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer" }}>
+              <input type="checkbox" checked={consentMedia} onChange={e=>setConsentMedia(e.target.checked)}
+                style={{ width:20,height:20,marginTop:2,flexShrink:0,accentColor:GREEN,cursor:"pointer" }}/>
+              <span>
+                <div style={{ fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:4,fontSize:13 }}>
+                  📸 موافقة اختيارية: التصوير والنشر الإعلامي العام
+                </div>
+                <div style={{ fontSize:11,color:"#2d5a3d",direction:"rtl",lineHeight:1.6,marginBottom:4 }}>
+                  أوافق على استخدام صور طفلي في الأنشطة الإعلامية العامة للمدرسة (الموقع الإلكتروني، وسائل التواصل الاجتماعي، المطبوعات). 
+                </div>
+                <div style={{ fontSize:10,color:"#5a9a6a",direction:"ltr" }}>
+                  Optional: I agree to the use of my child's photos for general publicity (website, social media, print materials).
+                </div>
+              </span>
+            </label>
           </div>
         </>}
 
@@ -651,6 +686,10 @@ export default function App() {
                 </div>
               </div>
             ))}
+          </RevSec>
+          <RevSec ar="الموافقات" de="Einwilligungen">
+            <RR ar="واتساب أولياء الأمور (إلزامية)" de="WhatsApp-Elterngruppe (Pflicht)" val={consentWhatsapp?"✅ موافق":"❌ غير موافق"}/>
+            <RR ar="النشر الإعلامي العام " de="Allgemeine Öffentlichkeitsarbeit (freiwillig)" val={consentMedia?"✅ موافق":"❌ غير موافق"}/>
           </RevSec>
           <div style={{ background:"#f0f4ff",border:`1.5px solid ${BLUE}`,borderRadius:12,padding:"14px 16px",textAlign:"center" }}>
             <div style={{ fontSize:22,marginBottom:8 }}>📧</div>
