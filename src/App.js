@@ -7,14 +7,14 @@ const BLUE  = "#2E5DA8";
 const GOLD  = "#C8960A";
 const GREEN = "#3A7D3A";
 const CAPACITY = {
-  "Vorschule 1": { "Samstag":{"09:00–12:45":16,"13:00–16:45":16}, "Sonntag":{"09:00–12:45":20,"13:00–16:45":24} },
-  "Vorschule 2": { "Samstag":{"09:00–12:45":24,"13:00–16:45":24}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
-  "Vorschule 3": { "Samstag":{"09:00–12:45":23,"13:00–16:45":32}, "Sonntag":{"09:00–12:45":16,"13:00–16:45":24} },
-  "Klasse 1":    { "Samstag":{"09:00–12:45":20,"13:00–16:45":20}, "Sonntag":{"09:00–12:45":23,"13:00–16:45":24} },
-  "Klasse 2":    { "Samstag":{"09:00–12:45":16,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
-  "Klasse 3":    { "Samstag":{"09:00–12:45":null,"13:00–16:45":12},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
-  "Klasse 4":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":null},"Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
-  "Klasse 5":    { "Samstag":{"09:00–12:45":12,"13:00–16:45":12}, "Sonntag":{"09:00–12:45":12,"13:00–16:45":24} },
+  "Vorschule 1": { "Samstag":{"10:00–12:45":16,"13:00–15:45":16}, "Sonntag":{"10:00–12:45":20,"13:00–15:45":24} },
+  "Vorschule 2": { "Samstag":{"10:00–12:45":24,"13:00–15:45":24}, "Sonntag":{"10:00–12:45":16,"13:00–15:45":24} },
+  "Vorschule 3": { "Samstag":{"10:00–12:45":23,"13:00–15:45":32}, "Sonntag":{"10:00–12:45":16,"13:00–15:45":24} },
+  "Klasse 1":    { "Samstag":{"10:00–12:45":20,"13:00–15:45":20}, "Sonntag":{"10:00–12:45":23,"13:00–15:45":24} },
+  "Klasse 2":    { "Samstag":{"10:00–12:45":16,"13:00–15:45":12}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
+  "Klasse 3":    { "Samstag":{"10:00–12:45":null,"13:00–15:45":12},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
+  "Klasse 4":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":null},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
+  "Klasse 5":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":12}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
 };
 const getCapacity = (grade,day,sess) => CAPACITY[grade]?.[day]?.[sess] ?? null;
 
@@ -37,7 +37,7 @@ const SCHOOLS = [
 ];
 
 const DAYS     = ["Samstag / السبت", "Sonntag / الأحد"];
-const SESSIONS = ["09:00–12:45", "13:00–16:45"];
+const SESSIONS = ["10:00–12:45", "13:00–15:45"];
 const DAYS_KEY     = ["Samstag", "Sonntag"];
 
 const KORAN_SESSIONS = [
@@ -182,7 +182,7 @@ function KoranSessionPicker({ selectedDay, selectedSession, onSelect }) {
 }
 export default function App() {
   const [step, setStep]         = useState(0);
-  const [parent, setParent]     = useState({ name:"", nameErr:false, email:"", address:"", phone:"" });
+  const [parent, setParent]     = useState({ name:"", nameErr:false, email:"", address:"", phoneFather:"", phoneMother:"" });
   const [children, setChildren] = useState([emptyChild()]);
   const [errors, setErrors]     = useState({});
   const [status, setStatus]     = useState("idle");
@@ -228,12 +228,14 @@ export default function App() {
       if (!parent.name.trim()||!isLatin(parent.name)) e.name=1;
       if (!/\S+@\S+\.\S+/.test(parent.email)) e.email=1;
       if (!parent.address.trim()) e.address=1;
-      if (parent.phone.trim().length<9) e.phone=1;
+      if (parent.phoneFather.trim().length<9) e.phoneFather=1;
+      if (parent.phoneMother.trim() && parent.phoneMother.trim().length<9) e.phoneMother=1;
     }
     if (step===1) children.forEach((ch,i)=>{
       if (!ch.name.trim()||!isLatin(ch.name)) e[`cn${i}`]=1;
       if (!ch.dob) e[`cd${i}`]=1;
       if (!ch.school) e[`cs${i}`]=1;
+      if (!ch.photoBase64) e[`cp${i}`]=1;
       const needsGrade = ch.school?.key==="Arabisch"||ch.school?.key==="Beide";
       if (needsGrade && !ch.grade) e[`cg${i}`]=1;
       const isTest = ch.grade==="Einstufungstest erforderlich";
@@ -375,9 +377,17 @@ export default function App() {
           <Fld ar="العنوان الكامل" de="Vollständige Adresse" err={errors.address}>
             <input style={inp(errors.address)} placeholder="Straße Nr., PLZ Ort" value={parent.address} onChange={e=>up("address",e.target.value)}/>
           </Fld>
-          <Fld ar="رقم الجوال / واتساب" de="Handynummer / WhatsApp" err={errors.phone}>
-            <input style={inp(errors.phone)} placeholder="+49 1XX XXXXXXXX" value={parent.phone} onChange={e=>up("phone",e.target.value)}/>
+          <Fld ar="رقم جوال الأب / واتساب" de="Handynummer des Vaters / WhatsApp" err={errors.phoneFather}>
+            <input style={inp(errors.phoneFather)} placeholder="+49 1XX XXXXXXXX" value={parent.phoneFather} onChange={e=>up("phoneFather",e.target.value)}/>
           </Fld>
+          <div style={{ marginBottom:14 }}>
+            <label style={S.label}>
+              <span style={{ display:"block",direction:"rtl" }}>رقم جوال الأم / واتساب </span>
+              <span style={{ display:"block",fontSize:"0.8em",color:"#5a7a6a",direction:"ltr" }}>Handynummer der Mutter / WhatsApp </span>
+            </label>
+            <input style={inp(errors.phoneMother)} placeholder="+49 1XX XXXXXXXX" value={parent.phoneMother} onChange={e=>up("phoneMother",e.target.value)}/>
+            {errors.phoneMother && <Err ar="رقم الجوال غير صحيح" de="Ungültige Handynummer"/>}
+          </div>
         </>}
 
         {/* STEP 1: Children */}
@@ -488,11 +498,7 @@ export default function App() {
                         <span style={{ direction:"rtl",display:"block" }}>يرجى اختيار موعد القرآن</span>
                         <span style={{ direction:"ltr",display:"block" }}>Bitte Koran-Unterrichtszeit wählen</span>
                       </div>}
-                      {ch.dob && (
-                        <div style={{ marginTop:8,background:"#fff",border:"1px solid #c8e8c8",borderRadius:8,padding:"8px 12px",fontSize:11 }}>
-                          <span style={{ direction:"rtl",display:"block",fontWeight:600,color:GREEN }}>الفئة العمرية: {getAgeGroup(ch.dob)}</span>
-                        </div>
-                      )}
+                     
                       {ch.dob && calcAge(ch.dob)>10 && (
                         <div style={{ marginTop:8 }}>
                           <div style={{ fontSize:12,fontWeight:600,color:GREEN,direction:"rtl",marginBottom:6 }}>الجنس / Geschlecht:</div>
@@ -579,10 +585,10 @@ export default function App() {
               {/* Photo */}
               <div>
                 <label style={S.label}>
-                  <span style={{ display:"block",direction:"rtl" }}>📷 صورة الطفل (لبطاقة التعريف)</span>
-                  <span style={{ fontSize:"0.8em",color:"#5a7a6a" }}>Foto des Kindes (für Schülerausweis)</span>
+                  <span style={{ display:"block",direction:"rtl" }}>📷 صورة الطفل (لبطاقة التعريف) *</span>
+                  <span style={{ fontSize:"0.8em",color:"#5a7a6a" }}>Foto des Kindes (für Schülerausweis) *</span>
                 </label>
-                <label style={{ display:"block",cursor:"pointer",width:88,height:106,borderRadius:10,overflow:"hidden",border:"2px dashed #a0ccb0" }}>
+                <label style={{ display:"block",cursor:"pointer",width:88,height:106,borderRadius:10,overflow:"hidden",border:`2px dashed ${errors[`cp${i}`]?"#e05555":"#a0ccb0"}` }}>
                   {ch.photoPreview
                     ? <img src={ch.photoPreview} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>
                     : <div style={{ width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#e8f5ee",color:"#5a9a6a",fontSize:11,textAlign:"center",gap:4 }}>
@@ -592,6 +598,10 @@ export default function App() {
                       </div>}
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>handlePhoto(i,e.target.files[0])}/>
                 </label>
+                {errors[`cp${i}`] && <div style={{ marginTop:6 }}>
+                  <div style={{ color:"#e05555",fontSize:11,direction:"rtl" }}>⚠ صورة الطفل مطلوبة</div>
+                  <div style={{ color:"#e05555",fontSize:11,direction:"ltr" }}>Foto ist erforderlich</div>
+                </div>}
               </div>
             </div>
           ))}
@@ -619,7 +629,8 @@ export default function App() {
             <RR ar="الاسم" de="Name" val={parent.name}/>
             <RR ar="الإيميل" de="E-Mail" val={parent.email}/>
             <RR ar="العنوان" de="Adresse" val={parent.address}/>
-            <RR ar="الجوال" de="Handy" val={parent.phone}/>
+            <RR ar="جوال الأب" de="Handy Vater" val={parent.phoneFather}/>
+            {parent.phoneMother && <RR ar="جوال الأم" de="Handy Mutter" val={parent.phoneMother}/>}
           </RevSec>
           <RevSec ar="الأبناء" de="Kinder">
             {children.map((ch,i)=>(
