@@ -700,7 +700,7 @@ export default function App() {
             <div style={{ fontSize:14,fontWeight:700,color:"#0d3b26",direction:"rtl",marginBottom:4 }}>سيتم إرسال العقد إلى إيميل ولي الأمر يرجى توقيعه و إعادة إرسالة إلى itqanschule@gmail.com </div>
             <div style={{ fontSize:12,color:BLUE,direction:"ltr",fontWeight:600,marginBottom:8 }}>Der Vertrag wird an die E-Mail-Adresse der Erziehungsberechtigten gesendet. Bitte unterschreiben Sie diesen und senden Sie ihn zurück an itqanschule@gmail.com Die Schulleitung behält sich das Recht vor, den Antrag ohne Angabe von Gründen anzunehmen oder abzulehnen</div>
             <div style={{ background:"#fff",borderRadius:8,padding:"8px 14px",border:"1px solid #d0d8f0",fontSize:13,color:"#3a5a7a" }}>
-              <strong></strong>
+              
             </div>
           </div>
         </>}
