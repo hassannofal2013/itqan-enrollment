@@ -15,6 +15,7 @@ const CAPACITY = {
   "Klasse 3":    { "Samstag":{"10:00–12:45":null,"13:00–15:45":12},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
   "Klasse 4":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":null},"Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
   "Klasse 5":    { "Samstag":{"10:00–12:45":12,"13:00–15:45":12}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":24} },
+  "Klasse 6":    { "Samstag":{"10:00–12:45":null,"13:00–15:45":null}, "Sonntag":{"10:00–12:45":12,"13:00–15:45":12} },
 };
 const getCapacity = (grade,day,sess) => CAPACITY[grade]?.[day]?.[sess] ?? null;
 
@@ -27,6 +28,7 @@ const GRADES = [
   { ar:"الصف الثالث",  de:"Klasse 3", code:"3" },
   { ar:"الصف الرابع",  de:"Klasse 4", code:"4" },
   { ar:"الصف الخامس",  de:"Klasse 5", code:"5" },
+   { ar:"الصف السادس",  de:"Klasse 6", code:"6" },
   { ar:"مطلوب اختبار تحديد مستوى", de:"Einstufungstest erforderlich", code:"TEST" },
 ];
 
