@@ -45,6 +45,7 @@ const DAYS_KEY     = ["Samstag", "Sonntag"];
 const KORAN_SESSIONS = [
   { day:"Freitag",  dayAr:"الجمعة",  session:"17:30–19:30" },
   { day:"Samstag",  dayAr:"السبت",   session:"16:30–18:30" },
+   { day:"Samstag",  dayAr:"السبت",   session:"13:30–15:30" },
   { day:"Sonntag",  dayAr:"الأحد",   session:"13:00–15:00" },
 ];
 
